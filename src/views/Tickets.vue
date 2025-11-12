@@ -27,7 +27,7 @@
       </div>
 
       <div class="actions">
-        <button class="button" @click="syncM365">Sincronizar Microsoft 365</button>
+        <button class="button" @click="syncM365" style="background-color: #17C1A4; color: white">Sincronizar Microsoft 365</button>
         <button 
           class="button ghost" 
           @click="clearAllFilters" 
