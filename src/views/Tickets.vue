@@ -129,7 +129,7 @@
             </thead>
             <tbody>
               <tr v-for="t in filtered" :key="t.id" @click="openTicket(t)">
-                <td><span class="tag" :class="mapEstado(t.estadoTicket)">{{ t.estadoTicket }}</span></td>
+                <td><span :class="mapEstado(t.estado)">{{ t.estadoTicket }}</span></td>
                 <td><span class="pill">{{ t.ticket_id_display || t.ticket_id }}</span></td>
                 <td>{{ t.created_at }}</td>
                 <td>{{ t.fecha_vencimiento ? t.fecha_vencimiento : '—' }}</td>
@@ -277,10 +277,13 @@
             </label>
 
             <label>
-              <span>SLA (horas)
-                <span v-if="guardandoCampo === 'slaHoras'" class="saving-indicator">💾</span>
+              <span>Nivel
+                <span v-if="guardandoCampo === 'nivel_id'" class="saving-indicator">💾</span>
               </span>
-              <input type="number" min="1" step="1" v-model.number="form.slaHoras" class="input" :class="{ 'saving': guardandoCampo === 'slaHoras' }" />
+              <select v-model="form.nivel_id" class="input" :class="{ 'saving': guardandoCampo === 'nivel_id' }">
+                <option value="">-- Seleccionar nivel --</option>
+                <option v-for="n in tiposNivel" :key="n.id" :value="n.id">{{ n.id }} - {{ n.nombre }}</option>
+              </select>
             </label>
 
             <div class="span2 response-section">
@@ -357,7 +360,7 @@
             <span class="muted" v-if="modal.mode==='edit'">Última act.: {{ form.updated_at }}</span>
           </div>
           <div class="right">
-            <button class="button ghost" @click="closeModal">Cancelar</button>
+            <button class="button ghost" @click="closeModal">Cerrar</button>
             <button 
               v-if="modal.mode === 'edit' && reply.texto.trim() && form.message_id" 
               class="button success" 
@@ -547,6 +550,7 @@ const prioridades = ref([]);
 const tiposSoporte = ref([]);
 const tiposTicket = ref([]);
 const macroprocesos = ref([]);
+const tiposNivel = ref([]);
 
 const asignados = computed(()=>{
   const nombres = new Set()
@@ -575,6 +579,7 @@ onMounted(async ()=>{
   await obtenerTipoSoporte();
   await obtenerTipoTicket();
   await obtenerMacroprocesos();
+  await obtenerTipoNivel();
 })
 watch(inbox, v=> localStorage.setItem('inbox_m365', JSON.stringify(v)), { deep:true })
 
@@ -652,6 +657,24 @@ const obtenerMacroprocesos = async () => {
     }
   } catch (error) {
     console.error('Error al obtener macroprocesos:', error);
+  } 
+};
+
+const obtenerTipoNivel = async () => {
+  try {
+    const response = await axios.post(
+        `${apiUrl}/obtener_tipo_nivel`, {},
+        {
+            headers: {
+                Accept: "application/json",
+            }
+        }
+    );
+    if (response.status === 200) {
+        tiposNivel.value = response.data.data || [];
+    }
+  } catch (error) {
+    console.error('Error al obtener tipos de nivel:', error);
   } 
 };
 
@@ -1234,9 +1257,9 @@ watch(() => form.value.vencimiento, async (nuevoV, anteriorV) => {
   }
 });
 
-watch(() => form.value.slaHoras, async (nuevoSLA, anteriorSLA) => {
-  if (debeEjecutarWatcher(nuevoSLA, anteriorSLA)) {
-    await actualizarCampoTicket('sla', nuevoSLA, 'SLA (horas)');
+watch(() => form.value.nivel_id, async (nuevoN, anteriorN) => {
+  if (debeEjecutarWatcher(nuevoN, anteriorN)) {
+    await actualizarCampoTicket('nivel_id', nuevoN, 'Nivel');
   }
 });
 
@@ -1313,8 +1336,15 @@ function openTicket(t){
     // Mapear fecha_vencimiento
     form.value.vencimiento = t.fecha_vencimiento || t.vencimiento || '';
     
-    // Mapear sla
-    form.value.slaHoras = t.sla || '';
+    // Mapear nivel_id
+    const nivelValue = t.nivel_id || t.nivel;
+    if (nivelValue && typeof nivelValue === 'object') {
+      form.value.nivel_id = nivelValue.id || nivelValue;
+    } else if (nivelValue) {
+      form.value.nivel_id = nivelValue;
+    } else {
+      form.value.nivel_id = '';
+    }
     
     reply.value = { tipo:'public', texto:'' }
   });
@@ -1336,7 +1366,7 @@ function openNew(){
     macroproceso:'', asignadoA:'',
     creadoEn:new Date().toISOString(),
     actualizadoEn:new Date().toISOString(),
-    vencimiento:'', slaHoras: ''
+    vencimiento:'', nivel_id: ''
   }
   reply.value = { tipo:'public', texto:'' }
   lockScroll(true)
@@ -1403,7 +1433,7 @@ async function actualizarCampoTicket(campo, valor, mensaje) {
       `${apiUrl}/actualizar_ticket`,
       {
         ticket_id: form.value.id,
-        message_id: form.value.message_id, // Por si necesita el message_id como alternativa
+        message_id: form.value.message_id,
         campo: campo,
         valor: valor
       },
@@ -1430,6 +1460,12 @@ async function actualizarCampoTicket(campo, valor, mensaje) {
     }
   } catch (error) {
     console.error(`❌ Error actualizando ${campo}:`, error);
+    console.error('❌ Error completo:', {
+      message: error.message,
+      response: error.response,
+      request: error.request,
+      config: error.config
+    });
     
     // Mostrar mensaje de error más específico
     const mensajeError = error.response?.data?.message || `Error al actualizar ${mensaje.toLowerCase()}`;
@@ -1455,6 +1491,7 @@ function actualizarTicketEnLista(ticketId, campo, valor) {
       'macroproceso': 'macroproceso',
       'asignado': 'asignado',
       'fecha_vencimiento': 'fecha_vencimiento',
+      'nivel_id': 'nivel_id',
       'sla': 'sla'
     };
     
@@ -1672,10 +1709,11 @@ async function clearAllFilters() {
   }
 }
 
-function mapEstado(e){
-  if(e==='Abierto') return 'chip-gray'
-  if(e==='En Proceso') return 'chip-blue'
-  if(e==='Completado') return 'chip-green'
+function mapEstado(estadoId){
+  // Mapear por ID del estado
+  if(estadoId === 1 || estadoId === '1') return 'chip-gray'    // Abierto
+  if(estadoId === 2 || estadoId === '2') return 'chip-blue'    // En Proceso
+  if(estadoId === 3 || estadoId === '3') return 'chip-green'   // Completado
   return ''
 }
 
@@ -2289,11 +2327,11 @@ function cleanHtmlForTicketModal(htmlContent) {
 .table thead th{ color:#667085; font-weight:600 }
 .pill{ padding:4px 10px; border-radius:999px; border:1px solid var(--border); background:#fff; white-space:nowrap }
 .tag{ padding:4px 10px; border-radius:999px; border:1px solid var(--border); background:#fff; font-size:.9rem; white-space:nowrap }
-.chip-blue{ color:#2563eb; border-color:#c7ddff; background:#f0f6ff }
-.chip-yellow{ color:#92400e; border-color:#fde68a; background:#fffbeb }
-.chip-green{ color:#047857; border-color:#bbf7d0; background:#ecfdf5 }
-.chip-dark{ color:#111827; border-color:#d1d5db; background:#f3f4f6 }
-.chip-gray{ color:#374151; border-color:#e5e7eb; background:#f9fafb }
+.chip-blue{ padding:4px 10px; border-radius:999px; font-size:.9rem; white-space:nowrap; color:#ffffff; border:1px solid #2563eb; background:#2563eb }
+.chip-yellow{ padding:4px 10px; border-radius:999px; font-size:.9rem; white-space:nowrap; color:#ffffff; border:1px solid #92400e; background:#92400e }
+.chip-green{ padding:4px 10px; border-radius:999px; font-size:.9rem; white-space:nowrap; color:#ffffff; border:1px solid #047857; background:#047857 }
+.chip-dark{ padding:4px 10px; border-radius:999px; font-size:.9rem; white-space:nowrap; color:#ffffff; border:1px solid #111827; background:#111827 }
+.chip-gray{ padding:4px 10px; border-radius:999px; font-size:.9rem; white-space:nowrap; color:#374151; border:1px solid #e5e7eb; background:#f9fafb }
 .ellipsis{ max-width:320px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .empty{ text-align:center; color:#6b7280; padding:32px 0 }
 

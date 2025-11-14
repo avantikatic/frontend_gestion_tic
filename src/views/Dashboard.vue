@@ -30,11 +30,10 @@
     <section class="grid grid-4">
       <div class="card kpis">
         <h3>Resumen</h3>
-        <div class="kpi-wrap">
+        <div class="kpi-wrap kpi-wrap-3">
           <div class="kpi"><div class="kpi-n">{{ cargandoMetricas ? '...' : totals.total }}</div><div class="kpi-l">Tickets</div></div>
           <div class="kpi"><div class="kpi-n">{{ cargandoMetricas ? '...' : totals.gestion }}</div><div class="kpi-l">Gestión</div></div>
           <div class="kpi"><div class="kpi-n">{{ cargandoMetricas ? '...' : totals.estrategicos }}</div><div class="kpi-l">Estratégicos</div></div>
-          <div class="kpi"><div class="kpi-n">{{ cargandoMetricas ? '...' : totals.prioridad_alta }}</div><div class="kpi-l">Prioridad alta</div></div>
         </div>
         <div class="chips">
           <span class="chip">Abiertos: {{ cargandoMetricas ? '...' : estadosTickets.abiertos }}</span>
@@ -72,6 +71,9 @@
       <div class="card">
         <div class="head"><h3>Prioridad</h3></div>
         <canvas ref="cPrio"></canvas>
+        <div class="legend center">
+          <span class="chip">Prioridad alta: {{ cargandoMetricas ? '...' : totals.prioridad_alta }}</span>
+        </div>
       </div>
 
       <div class="card">
@@ -562,6 +564,7 @@ onMounted(async () => {
 /* ===== RESUMEN ===== */
 .kpis{ min-height:240px }
 .kpis .kpi-wrap{ display:grid; grid-template-columns: repeat(4,1fr); gap:8px }
+.kpis .kpi-wrap-3{ grid-template-columns: repeat(3,1fr) !important }
 .kpi{ background:#f9fafb; border:1px solid var(--border); border-radius:12px; padding:10px; text-align:center }
 .kpi-n{ font-size:28px; font-weight:800 }
 .kpi-l{ color:#6b7280; font-size:.9rem }
