@@ -214,7 +214,7 @@
               <span>Prioridad 
                 <span v-if="guardandoCampo === 'prioridad'" class="saving-indicator">💾</span>
               </span>
-              <select v-model="form.prioridad" class="input" :class="{ 'saving': guardandoCampo === 'prioridad' }">
+              <select v-model="form.prioridad" class="input" :class="{ 'saving': guardandoCampo === 'prioridad' }" :disabled="isTicketCompletado">
                 <option value="">-- Seleccionar prioridad --</option>
                 <option v-for="p in prioridades" :key="p.id" :value="p.id">{{ p.id }} - {{ p.nombre }}</option>
               </select>
@@ -224,7 +224,7 @@
               <span>Estado
                 <span v-if="guardandoCampo === 'estado'" class="saving-indicator">💾</span>
               </span>
-              <select v-model="form.estado" class="input" :class="{ 'saving': guardandoCampo === 'estado' }">
+              <select v-model="form.estado" class="input" :class="{ 'saving': guardandoCampo === 'estado' }" :disabled="isTicketCompletado">
                 <option v-for="e in estados" :key="e.id" :value="e.id">{{ e.id }} - {{ e.nombre }}</option>
               </select>
             </label>
@@ -233,7 +233,7 @@
               <span>Tipo de Soporte
                 <span v-if="guardandoCampo === 'tipoSoporte'" class="saving-indicator">💾</span>
               </span>
-              <select v-model="form.tipoSoporte" class="input" :class="{ 'saving': guardandoCampo === 'tipoSoporte' }">
+              <select v-model="form.tipoSoporte" class="input" :class="{ 'saving': guardandoCampo === 'tipoSoporte' }" :disabled="isTicketCompletado">
                 <option value="">-- Seleccionar tipo de soporte --</option>
                 <option v-for="t in tiposSoporte" :key="t.id" :value="t.id">{{ t.id }} - {{ t.nombre }}</option>
               </select>
@@ -243,7 +243,7 @@
               <span>Tipo de ticket
                 <span v-if="guardandoCampo === 'tipoTicket'" class="saving-indicator">💾</span>
               </span>
-              <select v-model="form.tipoTicket" class="input" :class="{ 'saving': guardandoCampo === 'tipoTicket' }">
+              <select v-model="form.tipoTicket" class="input" :class="{ 'saving': guardandoCampo === 'tipoTicket' }" :disabled="isTicketCompletado">
                 <option value="">-- Seleccionar tipo de ticket --</option>
                 <option v-for="t in tiposTicket" :key="t.id" :value="t.id">{{ t.id }} - {{ t.nombre }}</option>
               </select>
@@ -253,7 +253,7 @@
               <span>Macroproceso
                 <span v-if="guardandoCampo === 'macroproceso'" class="saving-indicator">💾</span>
               </span>
-              <select v-model="form.macroproceso" class="input" :class="{ 'saving': guardandoCampo === 'macroproceso' }">
+              <select v-model="form.macroproceso" class="input" :class="{ 'saving': guardandoCampo === 'macroproceso' }" :disabled="isTicketCompletado">
                 <option value="">—</option>
                 <option v-for="m in macroprocesos" :key="m.id" :value="m.id">{{ m.nombre }}</option>
               </select>
@@ -263,7 +263,7 @@
               <span>Asignado a
                 <span v-if="guardandoCampo === 'asignadoA'" class="saving-indicator">💾</span>
               </span>
-              <select v-model="form.asignadoA" class="input" :class="{ 'saving': guardandoCampo === 'asignadoA' }">
+              <select v-model="form.asignadoA" class="input" :class="{ 'saving': guardandoCampo === 'asignadoA' }" :disabled="isTicketCompletado">
                 <option value="">Sin asignar</option>
                 <option v-for="t in tecnicos" :key="t.id" :value="t.id">{{ t.nombre }}</option>
               </select>
@@ -273,21 +273,21 @@
               <span>Vencimiento
                 <span v-if="guardandoCampo === 'vencimiento'" class="saving-indicator">💾</span>
               </span>
-              <input type="date" v-model="form.vencimiento" class="input" :class="{ 'saving': guardandoCampo === 'vencimiento' }" />
+              <input type="date" v-model="form.vencimiento" class="input" :class="{ 'saving': guardandoCampo === 'vencimiento' }" :disabled="isTicketCompletado" />
             </label>
 
             <label>
               <span>Nivel
                 <span v-if="guardandoCampo === 'nivel_id'" class="saving-indicator">💾</span>
               </span>
-              <select v-model="form.nivel_id" class="input" :class="{ 'saving': guardandoCampo === 'nivel_id' }">
+              <select v-model="form.nivel_id" class="input" :class="{ 'saving': guardandoCampo === 'nivel_id' }" :disabled="isTicketCompletado">
                 <option value="">-- Seleccionar nivel --</option>
                 <option v-for="n in tiposNivel" :key="n.id" :value="n.id">{{ n.id }} - {{ n.nombre }}</option>
               </select>
             </label>
 
             <div class="span2 response-section">
-              <label>
+              <label v-if="!isTicketCompletado">
                 <span>Responder al Solicitante</span>
                 <textarea 
                   v-model="reply.texto" 
@@ -362,7 +362,7 @@
           <div class="right">
             <button class="button ghost" @click="closeModal">Cerrar</button>
             <button 
-              v-if="modal.mode === 'edit' && reply.texto.trim() && form.message_id" 
+              v-if="modal.mode === 'edit' && reply.texto.trim() && form.message_id && !isTicketCompletado" 
               class="button success" 
               @click="enviarRespuesta"
               :disabled="enviandoRespuesta"
@@ -1203,6 +1203,11 @@ watch([filteredBase], ()=>{ page.value=1 })
 const modal = ref({ open:false, mode:'edit' })
 const form = ref({})
 const reply = ref({ tipo:'public', texto:'' })
+
+// Computed para verificar si el ticket está completado (solo lectura)
+const isTicketCompletado = computed(() => {
+  return form.value.estado === 3
+})
 
 // Función auxiliar para validar si debe ejecutarse el watcher
 function debeEjecutarWatcher(nuevoValor, anteriorValor) {
