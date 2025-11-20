@@ -44,7 +44,7 @@
               (#Actividades de incidentes de soporte ejecutadas oportunamente/#Actividades de
               incidentes de soporte a cumplir)*100
             </td>
-            <td class="meta-adecuado">85%</td>
+            <td class="meta-adecuado">{{ porcentajeMetaDisplay }}</td>
             <td class="estado-aceptable">84%-70%</td>
             <td class="estado-inaceptable">< 70%</td>
             <td>Semanal</td>
@@ -54,67 +54,145 @@
       </table>
     </section>
 
-    <!-- Sección 2: Resultados -->
-    <section class="results">
-      <h2>2. RESULTADOS</h2>
-      <div class="results-table-wrapper">
-        <table class="results-table">
-          <thead>
-            <tr>
-              <th rowspan="2">MES</th>
-              <th rowspan="2">Nº total de Tickets a vencer en el mes</th>
-              <th rowspan="2">Nº de Tickets cerradas oportunamente</th>
-              <th rowspan="2">Nº de Tickets cerradas fuera de tiempo</th>
-              <th rowspan="2">Nº de Total de Tickets a vencer sin registrar en el mes</th>
-              <th rowspan="2">Índice de cumplimiento en la gestión oportuna</th>
-              <th rowspan="2">% Acumulado año</th>
-              <th rowspan="2">Meta</th>
-              <th rowspan="2">Nº total de Tickets que ingresaron en el mes</th>
-              <th rowspan="2">Nº Tickets abiertos pendientes del mes</th>
-              <!-- <th rowspan="2">Observaciones</th> -->
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="mes in meses" :key="mes.nombre">
-              <td class="mes-name">{{ mes.nombre }}</td>
-              <td>{{ mes.totalVencer }}</td>
-              <td>{{ mes.cerradasOportunamente }}</td>
-              <td>{{ mes.cerradasFueraTiempo }}</td>
-              <td>{{ mes.sinRegistrar }}</td>
-              <td :class="getIndicadorClass(mes.indiceCumplimiento)">
-                {{ mes.indiceCumplimiento }}
-              </td>
-              <td>{{ mes.acumuladoAnio }}</td>
-              <td>{{ mes.meta }}</td>
-              <td>{{ mes.totalIngresaron }}</td>
-              <td>{{ mes.ticketsAbiertos }}</td>
-              <td class="observaciones-cell">
-                <button @click="abrirModalObservaciones(mes)" class="btn-observaciones">
-                  📝
-                </button>
-              </td>
-            </tr>
-            <tr class="total-row">
-              <td class="mes-name"><strong>TOTAL</strong></td>
-              <td><strong>{{ totales.totalVencer }}</strong></td>
-              <td><strong>{{ totales.cerradasOportunamente }}</strong></td>
-              <td><strong>{{ totales.cerradasFueraTiempo }}</strong></td>
-              <td><strong>{{ totales.sinRegistrar }}</strong></td>
-              <td :class="getIndicadorClass(totales.indiceCumplimiento)">
-                <strong>{{ totales.indiceCumplimiento }}</strong>
-              </td>
-              <td><strong>{{ totales.acumuladoAnio }}</strong></td>
-              <td><strong>{{ totales.meta }}</strong></td>
-              <td></td>
-              <td><strong>{{ totales.ticketsAbiertos }}</strong></td>
-              <td></td>
-            </tr>
-          </tbody>
-        </table>
+    <!-- Sección 2: Resultados y Gráfica (gráfica debajo de la tabla) -->
+      <div class="indicadores-grid">
+        <div class="indicadores-col-table">
+          <div class="results-table-wrapper">
+            <table class="results-table">
+              <thead>
+                <tr>
+                  <th rowspan="2">MES</th>
+                  <th rowspan="2">Nº total de Tickets a vencer en el mes</th>
+                  <th rowspan="2">Nº de Tickets cerradas oportunamente</th>
+                  <th rowspan="2">Nº de Tickets cerradas fuera de tiempo</th>
+                  <th rowspan="2">Nº de Total de Tickets a vencer sin registrar en el mes</th>
+                  <th rowspan="2">Índice de cumplimiento en la gestión oportuna</th>
+                  <th rowspan="2">% Acumulado año</th>
+                  <th rowspan="2">Meta</th>
+                  <th rowspan="2">Nº total de Tickets que ingresaron en el mes</th>
+                  <th rowspan="2">Nº Tickets abiertos pendientes del mes</th>
+                  <!-- <th rowspan="2">Observaciones</th> -->
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="mes in meses" :key="mes.nombre">
+                  <td class="mes-name">{{ mes.nombre }}</td>
+                  <td>{{ mes.totalVencer }}</td>
+                  <td>{{ mes.cerradasOportunamente }}</td>
+                  <td>{{ mes.cerradasFueraTiempo }}</td>
+                  <td>{{ mes.sinRegistrar }}</td>
+                  <td :class="getIndicadorClass(mes.indiceCumplimiento)">
+                    {{ mes.indiceCumplimiento }}
+                  </td>
+                  <td>{{ mes.acumuladoAnio }}</td>
+                  <td>{{ porcentajeMetaDisplay }}</td>
+                  <td>{{ mes.totalIngresaron }}</td>
+                  <td>{{ mes.ticketsAbiertos }}</td>
+                  <td class="observaciones-cell">
+                    <button @click="abrirModalObservaciones(mes)" class="btn-observaciones">
+                      📝
+                    </button>
+                  </td>
+                </tr>
+                <tr class="total-row">
+                  <td class="mes-name"><strong>TOTAL</strong></td>
+                  <td><strong>{{ totales.totalVencer }}</strong></td>
+                  <td><strong>{{ totales.cerradasOportunamente }}</strong></td>
+                  <td><strong>{{ totales.cerradasFueraTiempo }}</strong></td>
+                  <td><strong>{{ totales.sinRegistrar }}</strong></td>
+                  <td :class="getIndicadorClass(totales.indiceCumplimiento)">
+                    <strong>{{ totales.indiceCumplimiento }}</strong>
+                  </td>
+                  <td><strong>{{ totales.acumuladoAnio }}</strong></td>
+                  <td><strong>{{ porcentajeMetaDisplay }}</strong></td>
+                  <td></td>
+                  <td><strong>{{ totales.ticketsAbiertos }}</strong></td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="indicadores-col-graficas">
+          <section class="simple-bar-chart-outer">
+            <div class="simple-bar-chart-scroll">
+              <section class="simple-bar-chart compact">
+                <header class="simple-bar-chart__header">
+                  <h2>Comportamiento mensual de tickets</h2>
+                  <p class="subtitle">Comparación de tickets totales vs. tickets cerrados oportunamente</p>
+                </header>
+                <div class="simple-bar-chart__body">
+                  <div class="simple-axis-y">
+                    <span v-for="tick in [120, 100, 80, 60, 40, 20, 0]" :key="tick">{{ tick }}</span>
+                  </div>
+                  <div class="simple-bars-area">
+                    <svg class="simple-line-svg" viewBox="0 0 100 180" preserveAspectRatio="none">
+                      <polyline :points="linePointsAcumulado" fill="none" stroke="#374151" stroke-width="0.3" stroke-linecap="round" stroke-linejoin="round" />
+                      <polyline :points="linePoints" fill="none" stroke="#2563eb" stroke-width="0.3" stroke-linecap="round" stroke-linejoin="round" />
+                      <polyline :points="linePointsMeta" fill="none" stroke="#004d0d" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <div v-for="mes in meses" :key="mes.mes_numero" class="simple-bar-group">
+                      <div
+                        class="simple-bar simple-bar-total"
+                        :style="{ height: (mes.totalVencer / 120 * 100) + '%', width: '28px' }"
+                        :title="`${mes.nombre}: Total ${mes.totalVencer} tickets`"
+                      ></div>
+                      <div
+                        class="simple-bar simple-bar-oportuno"
+                        :style="{ height: (mes.cerradasOportunamente / 120 * 100) + '%', width: '28px' }"
+                        :title="`${mes.nombre}: ${mes.cerradasOportunamente} oportunos`"
+                      ></div>
+                      <span class="simple-bar-label">{{ mes.nombre.slice(0, 3) }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="simple-legend simple-legend-right" style="display: none;"></div>
+                <div class="simple-legend simple-legend-bottom">
+                  <div class="legend-item"><span class="legend-color legend-blue"></span> Índice de cumplimiento</div>
+                  <div class="legend-item"><span class="legend-color legend-gray"></span> % Acumulado año</div>
+                  <div class="legend-item"><span class="legend-color legend-green"></span> Meta</div>
+                  <div class="legend-item"><span class="legend-bar legend-bar-total"></span> Total tickets a vencer</div>
+                  <div class="legend-item"><span class="legend-bar legend-bar-oportuno"></span> Tickets cerrados oportunamente</div>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section class="indicador-torta-card">
+            <h3>Estado global del indicador</h3>
+            <p class="indicador-torta-desc">Promedio de cumplimiento del periodo filtrado.</p>
+            <div class="indicador-torta-flex">
+              <svg viewBox="0 0 120 120" width="110" height="110" class="indicador-torta-svg">
+                <circle cx="60" cy="60" r="54" fill="#f4f8fc" stroke="#e5e7eb" stroke-width="15" />
+                <circle
+                  cx="60" cy="60" r="54"
+                  fill="none"
+                  :stroke="getEstadoColor(totales.indiceCumplimiento)"
+                  stroke-width="8"
+                  :stroke-dasharray="circumferencia"
+                  :stroke-dashoffset="circumferencia - (circumferencia * cumplimientoGlobal / 100)"
+                  stroke-linecap="round"
+                  transform="rotate(-90 60 60)"
+                />
+                <text x="60" y="66" text-anchor="middle" font-size="28" font-weight="bold" fill="#22396a">{{ cumplimientoGlobal }}%</text>
+                <text x="60" y="86" text-anchor="middle" font-size="12" fill="#22396a">cumplimiento</text>
+              </svg>
+              <div class="indicador-torta-estado">
+                <span class="indicador-torta-estado-badge" :class="getEstadoClass(totales.indiceCumplimiento)">
+                  {{ getEstadoTexto(totales.indiceCumplimiento) }}
+                </span>
+                <ul class="indicador-torta-leyenda">
+                  <li><span class="indicador-torta-dot adecuado"></span> Adecuado (≥ 85%)</li>
+                  <li><span class="indicador-torta-dot aceptable"></span> Aceptable (70% - 84%)</li>
+                  <li><span class="indicador-torta-dot inaceptable"></span> Inaceptable (&lt; 70%)</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+        </div>
       </div>
-    </section>
     </div>
-    
+
     <!-- Modal de Observaciones -->
     <div v-if="modalObservaciones" class="modal-overlay" @click="cerrarModal">
       <div class="modal-content" @click.stop>
@@ -159,6 +237,18 @@ const mesSeleccionado = ref(null)
 const observacionTexto = ref('')
 const guardando = ref(false)
 
+const porcentajeMeta = computed(() => {
+  if (!datosIndicadores.value || !datosIndicadores.value.indicadores?.length) return null
+  // Tomar el primer mes, ya que es igual para todos|
+  return datosIndicadores.value.indicadores[0].porcentaje_meta
+})
+
+const porcentajeMetaDisplay = computed(() => {
+  return porcentajeMeta.value !== null && porcentajeMeta.value !== undefined
+    ? `${porcentajeMeta.value}%`
+    : '—'
+})
+
 const totales = computed(() => {
   if (!datosIndicadores.value) {
     return {
@@ -168,7 +258,7 @@ const totales = computed(() => {
       sinRegistrar: 0,
       indiceCumplimiento: '0%',
       acumuladoAnio: '0%',
-      meta: '85%',
+      meta: porcentajeMetaDisplay.value,
       totalIngresaron: 0,
       ticketsAbiertos: 0,
     }
@@ -186,11 +276,26 @@ const totales = computed(() => {
     sinRegistrar: totals.sin_respuesta,
     indiceCumplimiento: `${totals.porcentaje_global}%`,
     acumuladoAnio: `${totals.porcentaje_global}%`,
-    meta: '85%',
+    meta: porcentajeMetaDisplay.value,
     totalIngresaron: totals.total_ingresados,
     ticketsAbiertos: sumaTicketsAbiertos,
   }
 })
+
+// Constantes para la gráfica
+
+// Eje Y fijo hasta 20, ticks cada 5
+const maxScale = 20
+const yTicks = [20, 15, 10, 5, 0]
+
+// Función para calcular la altura de las barras basada en la cantidad real
+function calcularAlturaBarra(valor) {
+  if (!valor || valor === 0) return 0
+  // Si valor = 8 y maxScale = 20, entonces altura = (8/20)*100 = 40%
+  // Visualmente la barra llega hasta 8 en el eje Y
+  const porcentaje = (valor / maxScale) * 100
+  return Math.min(porcentaje, 100)
+}
 
 function getIndicadorClass(valor) {
   if (valor === '#¡DIV/0!' || valor === '' || valor === null) return ''
@@ -230,7 +335,7 @@ async function cargarIndicadores() {
         sinRegistrar: ind.sin_respuesta,
         indiceCumplimiento: ind.total_completados > 0 ? `${ind.porcentaje}%` : '',
         acumuladoAnio: `${ind.porcentaje_acumulado}%`,
-        meta: '85%',
+        meta: ind.porcentaje_meta,
         totalIngresaron: ind.total_ingresados,
         ticketsAbiertos: ind.tickets_abiertos
       }))
@@ -309,8 +414,89 @@ const guardarObservacion = async () => {
   }
 }
 
+// Calcular el máximo de tickets del año para escalar las barras a porcentaje
+const maxTickets = computed(() => {
+  if (!meses.value.length) return 1
+  return Math.max(...meses.value.map(m => m.totalVencer || 0), 1)
+})
+
+// Altura de la gráfica de barras simple (debe coincidir con el CSS)
+const SIMPLE_BAR_CHART_HEIGHT = 180;
+
+// Calcula los puntos para la línea SVG del índice de cumplimiento (valor numérico, no porcentaje)
+const linePoints = computed(() => {
+  if (!meses.value.length) return ''
+  return meses.value.map((mes, i) => {
+    let valor = 0
+    // Usar el valor numérico del porcentaje (por ejemplo, 50)
+    if (mes.indiceCumplimiento && typeof mes.indiceCumplimiento === 'string') {
+      valor = parseFloat(mes.indiceCumplimiento.replace('%','')) || 0
+    }
+    const y = SIMPLE_BAR_CHART_HEIGHT - (valor * SIMPLE_BAR_CHART_HEIGHT / 120)
+    const x = (i / 11) * 100
+    return `${x},${y}`
+  }).join(' ')
+})
+
+// Calcula los puntos para la línea gris oscuro del % acumulado del año
+const linePointsAcumulado = computed(() => {
+  if (!meses.value.length) return ''
+  return meses.value.map((mes, i) => {
+    let valor = 0
+    if (mes.acumuladoAnio && typeof mes.acumuladoAnio === 'string') {
+      valor = parseFloat(mes.acumuladoAnio.replace('%','')) || 0
+    }
+    const y = SIMPLE_BAR_CHART_HEIGHT - (valor * SIMPLE_BAR_CHART_HEIGHT / 120)
+    const x = (i / 11) * 100
+    return `${x},${y}`
+  }).join(' ')
+})
+
+// Línea verde de meta (igual formato que las otras)
+const linePointsMeta = computed(() => {
+  if (!meses.value.length || porcentajeMeta.value === null || porcentajeMeta.value === undefined) return ''
+  const puntos = meses.value.map((_, i) => {
+    const valor = parseFloat(porcentajeMeta.value) || 0
+    const y = SIMPLE_BAR_CHART_HEIGHT - (valor * SIMPLE_BAR_CHART_HEIGHT / 120)
+    const x = (i / 11) * 100
+    return `${x},${y}`
+  })
+  return puntos.join(' ')
+})
+
+// Para la gráfica de torta
+const cumplimientoGlobal = computed(() => {
+  if (!totales.value || !totales.value.indiceCumplimiento) return 0;
+  const val = parseFloat(totales.value.indiceCumplimiento);
+  return isNaN(val) ? 0 : Math.round(val);
+});
+const circumferencia = 2 * Math.PI * 54;
+
+function getEstadoColor(valor) {
+  const pct = parseFloat(valor);
+  if (pct >= 85) return '#22c55e'; // verde
+  if (pct >= 70) return '#f59e42'; // naranja
+  return '#ef4444'; // rojo
+}
+function getEstadoClass(valor) {
+  const pct = parseFloat(valor);
+  if (pct >= 85) return 'adecuado';
+  if (pct >= 70) return 'aceptable';
+  return 'inaceptable';
+}
+function getEstadoTexto(valor) {
+  const pct = parseFloat(valor);
+  if (pct >= 85) return 'Adecuado';
+  if (pct >= 70) return 'Aceptable';
+  return 'Inaceptable';
+}
+
 onMounted(() => {
   cargarIndicadores()
+  setTimeout(() => {
+    // Mostrar los datos de los meses en consola para depuración
+    console.log('Meses para gráfica:', JSON.parse(JSON.stringify(meses.value)))
+  }, 1500)
 })
 </script>
 
@@ -364,19 +550,24 @@ onMounted(() => {
   box-shadow: 0 0 0 1px rgba(122, 199, 137, 0.35);
 }
 
+
 .refresh-btn {
-  padding: 6px 14px;
-  background: var(--gtic-primary);
-  color: white;
+  padding: 4px 18px;
+  background: #22396a;
+  color: #fff;
   border: none;
-  border-radius: 999px;
-  font-size: 0.8rem;
+  border-radius: 18px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
   cursor: pointer;
   transition: background 0.2s;
+  box-shadow: none;
+  outline: none;
 }
 
 .refresh-btn:hover:not(:disabled) {
-  background: #1c2d41;
+  background: #1a2947;
 }
 
 .refresh-btn:disabled {
@@ -475,16 +666,18 @@ h2 {
   border-collapse: collapse;
   font-size: 0.78rem;
   min-width: 1400px;
+  border: 1px solid #b4c6e7;
+  box-shadow: 0 2px 8px rgba(19, 41, 64, 0.04);
 }
 
 .results-table thead th {
-  background: var(--gtic-primary);
-  color:  black;
-  padding: 8px 6px;
+  background: #22396a;
+  color: #fff;
+  padding: 10px 8px;
   text-align: center;
   font-weight: 600;
-  border: 1px solid #132940;
-  font-size: 0.74rem;
+  border: 1px solid #22396a;
+  font-size: 0.78rem;
   line-height: 1.3;
   white-space: nowrap;
 }
@@ -500,31 +693,53 @@ h2 {
   font-size: 0.74rem;
 }
 
+
 .results-table tbody td {
-  padding: 6px 8px;
-  border: 1px solid #e2e6ea;
+  padding: 8px 8px;
+  border: 1px solid #dde3ef;
   text-align: center;
-  color: var(--gtic-text-main);
+  color: #22396a;
+  background: #fff;
+  transition: background 0.2s;
 }
 
-.results-table tbody tr:nth-child(even) {
-  background: #f7f9fb;
+.results-table tbody tr:nth-child(even) td {
+  background: #f4f8fc;
+}
+
+.results-table tbody tr:hover td {
+  background: #e7f3ff;
 }
 
 .mes-name {
-  background: #b4d7ee;
-  font-weight: 600;
+  background: #e7f3ff !important;
+  color: #22396a !important;
+  font-weight: 700 !important;
   text-align: left;
-  padding-left: 12px;
+  padding-left: 14px;
+  border-left: 4px solid #5b9bd5;
 }
 
 .total-row {
-  background: #b4d7ee;
-  font-weight: 600;
+  background: #dbeaf7 !important;
+  font-weight: 700;
 }
 
 .total-row td {
-  font-weight: 600;
+  font-weight: 700;
+  background: #dbeaf7 !important;
+  color: #22396a !important;
+}
+
+.results-table tbody td strong {
+  font-weight: 700;
+}
+
+.observaciones-cell {
+  min-width: 15px;
+  text-align: left;
+  justify-items: left;
+  background: #e7f3ff;
 }
 
 .observaciones-cell {
@@ -700,5 +915,462 @@ h2 {
 .observaciones-cell {
   text-align: center;
 }
+
+/* Estilos de la gráfica de barras */
+.indicator-chart {
+  background: var(--gtic-surface);
+  border-radius: 10px;
+  padding: 16px 18px 18px;
+  box-shadow: 0 8px 18px rgba(19, 41, 64, 0.06);
+  border: 1px solid #e2e6ea;
+  margin-top: 20px;
+}
+
+.indicator-chart__header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.indicator-chart__header h2 {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--gtic-text-main);
+}
+
+.indicator-chart__header .subtitle {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--gtic-text-muted);
+}
+
+.indicator-chart__body {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.axis-y {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: var(--gtic-text-muted);
+  padding-right: 4px;
+  padding-top: 4px;
+  padding-bottom: 18px;
+  height: 140px;
+}
+
+.chart-area {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 140px;
+  padding: 0 8px 0 8px;
+  border-radius: 8px;
+  background: linear-gradient(
+    to top,
+    #f8fafc 0%,
+    #f8fafc 50%,
+    #ffffff 100%
+  );
+  border: 1px solid #e2e6ea;
+  overflow: hidden;
+}
+
+.goal-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1.5px dashed #f97316;
+  z-index: 1;
+}
+
+.bar-group {
+  flex: 1;
+  position: relative;
+  display: flex;
+  gap: 3px;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.bar {
+  width: 40%;
+  min-height: 2px;
+  border-radius: 6px 6px 2px 2px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.bar-total {
+  background: linear-gradient(180deg, #94a3b8, #64748b);
+}
+
+.bar-total:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 10px rgba(100, 116, 139, 0.35);
+}
+
+.bar-oportuno {
+  background: linear-gradient(180deg, var(--gtic-secondary), var(--gtic-primary));
+}
+
+.bar-oportuno:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.35);
+}
+
+.bar-label {
+  position: absolute;
+  bottom: -16px;
+  font-size: 0.68rem;
+  color: #4b5563;
+  font-weight: 500;
+}
+
+/* NUEVOS ESTILOS PARA LA GRÁFICA SIMPLE */
+.simple-bar-chart {
+  background: var(--gtic-surface);
+  border-radius: 10px;
+  padding: 16px 18px 60px;
+  box-shadow: 0 8px 18px rgba(19, 41, 64, 0.06);
+  border: 1px solid #e2e6ea;
+  margin-top: 20px;
+}
+.simple-bar-chart__header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.simple-bar-chart__header h2 {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--gtic-text-main);
+}
+.simple-bar-chart__header .subtitle {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--gtic-text-muted);
+}
+.simple-bar-chart__body {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: end;
+  height: 140px;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+.simple-axis-y {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: var(--gtic-text-muted);
+  height: 180px;
+  padding-right: 8px;
+}
+.simple-bars-area {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  height: 180px;
+  border-radius: 8px;
+  background: repeating-linear-gradient(
+    to top,
+    #f8fafc 0px,
+    #f8fafc 49px,
+    #e0e7ef 50px,
+    #f8fafc 51px
+  );
+  border: 1px solid #e2e6ea;
+  margin-bottom: 0;
+  padding-bottom: 0;
+  min-width: 0;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.simple-bar-chart.compact {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto 48px auto;
+  box-sizing: border-box;
+}
+.simple-bar-group {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: center;
+  position: relative;
+  min-width: 32px;
+}
+.simple-bar {
+  width: 40px;
+  min-height: 2px;
+  border-radius: 4px 4px 2px 2px;
+  margin: 0 4px 0 4px;
+  transition: height 0.2s;
+  border: none;
+}
+.simple-bar-total {
+  background: #1e3a8a;
+}
+.simple-bar-oportuno {
+  background: #60a5fa;
+  margin-top: 2px;
+}
+.simple-bar-label {
+  position: absolute;
+  bottom: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.68rem;
+  color: #4b5563;
+  font-weight: 500;
+  margin-top: 2px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.simple-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 32px;
+  font-size: 0.68rem;
+  margin-top: 10px;
+  align-items: center;
+  justify-content: center;
+}
+
+.simple-line-svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.results-table-wrapper {
+  overflow-x: auto;
+}
+
+/* Leyenda de la gráfica */
+.simple-bar-chart__body-with-legend {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 24px;
+}
+.simple-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  font-size: 0.68rem;
+  margin-top: 10px;
+  align-items: center;
+  justify-content: center;
+}
+.simple-legend-right {
+  flex-direction: column;
+  min-width: 180px;
+  margin-top: 0;
+  margin-left: 18px;
+}
+.simple-legend-bottom {
+  flex-direction: row;
+  justify-content: center;
+  width: 100%;
+  margin-top: 18px;
+  margin-left: 0;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 4px;
+}
+.legend-color {
+  display: inline-block;
+  width: 18px;
+  height: 4px;
+  border-radius: 2px;
+}
+.legend-blue {
+  background: #2563eb;
+}
+.legend-gray {
+  background: #374151;
+}
+.legend-green {
+  background: #004d0d;
+}
+.legend-bar {
+  display: inline-block;
+  width: 18px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 2px;
+}
+.legend-bar-total {
+  background: #1e3a8a;
+}
+.legend-bar-oportuno {
+  background: #60a5fa;
+}
+/* Layout de 2 columnas para tabla y gráficas */
+.indicadores-grid {
+  display: grid;
+  grid-template-columns: 2fr 1.1fr;
+  gap: 24px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+.indicadores-col-table {
+  min-width: 0;
+}
+.indicadores-col-graficas {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+/* Card de estado global del indicador */
+.indicador-torta-card {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(19,41,64,0.07);
+  border: 1px solid #e2e6ea;
+  padding: 22px 18px 18px 18px;
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.indicador-torta-card h3 {
+  font-size: 1.08rem;
+  font-weight: 700;
+  color: #22396a;
+  margin: 0 0 4px 0;
+  text-align: center;
+}
+.indicador-torta-desc {
+  font-size: 0.92rem;
+  color: #6b7280;
+  margin-bottom: 12px;
+  text-align: center;
+}
+.indicador-torta-flex {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.indicador-torta-svg {
+  display: block;
+}
+.indicador-torta-estado {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.indicador-torta-estado-badge {
+  display: inline-block;
+  padding: 3px 16px;
+  border-radius: 999px;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #fff;
+  background: #22396a;
+  margin-bottom: 4px;
+}
+.indicador-torta-estado-badge.adecuado {
+  background: #22c55e;
+}
+.indicador-torta-estado-badge.aceptable {
+  background: #f59e42;
+}
+.indicador-torta-estado-badge.inaceptable {
+  background: #ef4444;
+}
+.indicador-torta-leyenda {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.92rem;
+  color: #22396a;
+}
+.indicador-torta-leyenda li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 2px;
+}
+.indicador-torta-dot {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  margin-right: 2px;
+}
+.indicador-torta-dot.adecuado {
+  background: #22c55e;
+}
+.indicador-torta-dot.aceptable {
+  background: #f59e42;
+}
+.indicador-torta-dot.inaceptable {
+  background: #ef4444;
+}
+/* Compactar gráfica y permitir scroll horizontal */
+
+/* Ajuste para que la gráfica nunca se sobrepase y solo tenga scroll si es necesario */
+.simple-bar-chart-outer {
+  width: 100%;
+  overflow-x: auto;
+  padding-bottom: 50px;
+  box-sizing: border-box;
+}
+.simple-bar-chart-scroll {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+.simple-bar-chart.compact {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.simple-bar-group {
+  min-width: 0;
+}
+.simple-bar {
+  width: 22px !important;
+  min-width: 12px;
+  max-width: 32px;
+}
+@media (max-width: 900px) {
+  .simple-bar-chart.compact {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+}
 </style>
+
 
