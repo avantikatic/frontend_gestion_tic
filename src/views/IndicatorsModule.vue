@@ -4,7 +4,7 @@
     <header class="module-header">
       <div>
         <p class="breadcrumb">Gestión TIC / Indicadores</p>
-        <h1>{{ selectedView === 'informe' ? 'Informe de Gestión' : currentIndicator.name }}</h1>
+        <!-- <h1>{{ selectedView === 'informe' ? 'Informe de Gestión' : currentIndicator.name }}</h1> -->
       </div>
 
       <div class="indicator-selector">

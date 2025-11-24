@@ -5,8 +5,11 @@
       <h1>INFORME DE GESTIÓN</h1>
       <div class="header-controls">
         <select v-model="anioActual" @change="cargarIndicadores" class="year-selector">
-          <option v-for="year in [2024, 2025, 2026]" :key="year" :value="year">{{ year }}</option>
+          <option v-for="year in aniosDisponibles" :key="year" :value="year">{{ year }}</option>
         </select>
+        <button @click="abrirModalCrearAnio" class="btn-crear-anio" title="Crear nuevo año">
+          + Crear año
+        </button>
         <select v-model="mesSeleccionadoFiltro" class="month-selector">
           <option value="">Todos los meses</option>
           <option v-for="mes in listaMeses" :key="mes.numero" :value="mes.numero">{{ mes.nombre }}</option>
@@ -63,6 +66,7 @@
       <div class="indicadores-grid">
         <div class="indicadores-col-table">
           <div class="results-table-wrapper">
+            <h2>2. RESULTADOS</h2>
             <table class="results-table">
               <thead>
                 <tr>
@@ -79,7 +83,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="mes in meses" :key="mes.nombre">
+                <tr v-for="mes in mesesFiltrados" :key="mes.nombre">
                   <td class="mes-name">{{ mes.nombre }}</td>
                   <td>{{ mes.totalVencer }}</td>
                   <td>{{ mes.cerradasOportunamente }}</td>
@@ -123,7 +127,7 @@
               <caption class="analisis-caption">
               <div class="analisis-caption-content">
                 <div>
-                  4. Análisis de causas y acciones
+                  Análisis de causas y acciones
                   <div class="analisis-subtitle">Registro mensual de causas principales, acciones correctivas y seguimiento.</div>
                 </div>
                 <button type="button" class="btn-agregar-analisis" @click="abrirModalAnalisis(null)">+ Agregar análisis</button>
@@ -181,20 +185,20 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-if="acciones_list.length === 0">
+                <tr v-if="analisisFiltrados.length === 0">
                   <td colspan="7" class="analisis-empty-message">
-                    No hay análisis de causas registrados para el periodo seleccionado.
+                    No hay análisis registrados para este periodo.
                   </td>
                 </tr>
-                <tr v-else v-for="accion in acciones_list" :key="accion.id">
-                  <td class="analisis-td-mes">{{ obtenerNombreMes(accion.mes) }}</td>
-                  <td class="analisis-td">{{ accion.analisis }}</td>
-                  <td class="analisis-td">{{ accion.acciones }}</td>
-                  <td class="analisis-td">{{ accion.responsable }}</td>
-                  <td class="analisis-td-fecha">{{ formatearFecha(accion.fecha_compromiso) }}</td>
-                  <td class="analisis-td">{{ accion.seguimiento }}</td>
-                  <td class="analisis-td-actions">
-                    <button @click="abrirModalAnalisis(accion)" class="btn-editar-analisis" title="Editar análisis">
+                <tr v-for="(item, index) in analisisFiltrados" :key="index">
+                  <td class="analisis-td analisis-td-mes">{{ item.mes }}</td>
+                  <td class="analisis-td">{{ item.analisis }}</td>
+                  <td class="analisis-td">{{ item.acciones }}</td>
+                  <td class="analisis-td">{{ item.responsable }}</td>
+                  <td class="analisis-td analisis-td-fecha">{{ item.fecha_compromiso }}</td>
+                  <td class="analisis-td">{{ item.seguimiento }}</td>
+                  <td class="analisis-td analisis-td-actions">
+                    <button class="btn-editar-analisis" @click="abrirModalAnalisis(item)" title="Editar análisis">
                       ✏️
                     </button>
                   </td>
@@ -208,20 +212,20 @@
             <div class="simple-bar-chart-scroll">
               <section class="simple-bar-chart compact">
                 <header class="simple-bar-chart__header">
-                  <h2>Comportamiento mensual de tickets</h2>
-                  <p class="subtitle">Comparación de tickets totales vs. tickets cerrados oportunamente</p>
+                  <h2>3. Gráfica</h2>
+                  <!-- <p class="subtitle">Comparación de tickets totales vs. tickets cerrados oportunamente</p> -->
                 </header>
                 <div class="simple-bar-chart__body">
                   <div class="simple-axis-y">
                     <span v-for="tick in [120, 100, 80, 60, 40, 20, 0]" :key="tick">{{ tick }}</span>
                   </div>
                   <div class="simple-bars-area">
-                    <svg class="simple-line-svg" viewBox="0 0 100 180" preserveAspectRatio="none">
+                    <svg class="simple-line-svg" viewBox="0 0 100 180" preserveAspectRatio="none" v-if="!mesSeleccionadoFiltro">
                       <polyline :points="linePointsAcumulado" fill="none" stroke="#374151" stroke-width="0.3" stroke-linecap="round" stroke-linejoin="round" />
                       <polyline :points="linePoints" fill="none" stroke="#2563eb" stroke-width="0.3" stroke-linecap="round" stroke-linejoin="round" />
                       <polyline :points="linePointsMeta" fill="none" stroke="#004d0d" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
-                    <div v-for="mes in meses" :key="mes.mes_numero" class="simple-bar-group">
+                    <div v-for="mes in mesesFiltrados" :key="mes.mes_numero" class="simple-bar-group">
                       <div
                         class="simple-bar simple-bar-total"
                         :style="{ height: (mes.totalVencer / 120 * 100) + '%', width: '28px' }"
@@ -284,8 +288,91 @@
             <h3>Tickets del periodo</h3>
             <p class="tickets-periodo-desc">Detalle de tickets asociados al indicador por mes.</p>
             
-            <div class="tickets-periodo-empty">
+            <div v-if="cargandoTickets" class="loading-tickets">
+              Cargando tickets...
+            </div>
+
+            <div v-else-if="!mesSeleccionadoFiltro" class="tickets-periodo-empty">
               <p>Selecciona un mes en el filtro para ver el detalle de los tickets.</p>
+            </div>
+
+            <div v-else-if="ticketsPeriodo.length === 0" class="tickets-periodo-empty">
+              <p>No hay tickets de gestión registrados para este mes.</p>
+            </div>
+
+            <div v-else class="tickets-list-container">
+              <div class="tickets-summary-cards">
+                <div class="summary-card card-total">
+                  <span class="card-label">TOTAL TICKETS</span>
+                  <span class="card-value">{{ resumenTicketsPeriodo.total }}</span>
+                </div>
+                <div class="summary-card card-cerrados">
+                  <span class="card-label">CERRADOS</span>
+                  <span class="card-value">{{ resumenTicketsPeriodo.cerrados }}</span>
+                </div>
+                <div class="summary-card card-progreso">
+                  <span class="card-label">EN PROGRESO</span>
+                  <span class="card-value">{{ resumenTicketsPeriodo.en_progreso }}</span>
+                </div>
+                <div class="summary-card card-abiertos">
+                  <span class="card-label">ABIERTOS</span>
+                  <span class="card-value">{{ resumenTicketsPeriodo.abiertos }}</span>
+                </div>
+              </div>
+
+              <div class="table-scroll-wrapper">
+                <table class="tickets-table">
+                  <thead>
+                    <tr>
+                      <th>Ticket</th>
+                      <th>Estado</th>
+                      <th>Responsable</th>
+                      <th>Solicitante</th>
+                      <th>Macroproceso</th>
+                      <th>Tipo</th>
+                      <th>Fecha Solicitud</th>
+                      <th>Fecha Vencimiento</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="ticket in ticketsPeriodo" :key="ticket.ticket_id">
+                      <td class="ticket-id">#{{ ticket.ticket_id }}</td>
+                      <td>
+                        <span class="status-badge" :class="`status-${ticket.estado}`">
+                          {{ ticket.estado_nombre }}
+                        </span>
+                      </td>
+                      <td class="ticket-responsable">{{ ticket.responsable_nombre }}</td>
+                      <td class="ticket-solicitante" :title="ticket.from_name">{{ ticket.from_name }}</td>
+                      <td class="ticket-macro">{{ ticket.macroproceso_nombre }}</td>
+                      <td class="ticket-tipo">{{ ticket.tipo_soporte_nombre }}</td>
+                      <td class="ticket-fecha">{{ ticket.receivedAt }}</td>
+                      <td class="ticket-fecha">{{ ticket.fecha_vencimiento }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Paginación -->
+              <div class="pagination-controls" v-if="totalTickets > itemsPerPage">
+                <button 
+                  class="btn-pagination" 
+                  :disabled="currentPage === 1" 
+                  @click="cambiarPagina(currentPage - 1)"
+                >
+                  Anterior
+                </button>
+                <span class="pagination-info">
+                  Página {{ currentPage }} de {{ totalPages }}
+                </span>
+                <button 
+                  class="btn-pagination" 
+                  :disabled="currentPage === totalPages" 
+                  @click="cambiarPagina(currentPage + 1)"
+                >
+                  Siguiente
+                </button>
+              </div>
             </div>
           </section>
         </div>
@@ -412,6 +499,50 @@
         </div>
       </div>
     </div>
+
+    <!-- Modal para crear año -->
+    <div v-if="mostrarModalAnio" class="modal-overlay" @click.self="cerrarModalAnio">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Crear Nuevo Año</h3>
+          <button @click="cerrarModalAnio" class="modal-close">×</button>
+        </div>
+        <div class="modal-body">
+          <form @submit.prevent="guardarNuevoAnio" class="form-analisis">
+            <div class="form-group">
+              <label for="nuevo-anio">Año *</label>
+              <input 
+                type="number"
+                id="nuevo-anio"
+                v-model="nuevoAnio.anio" 
+                placeholder="Ej: 2024"
+                required
+                min="1900"
+                max="2100"
+                class="form-input"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="descripcion-anio">Descripción (Opcional)</label>
+              <input 
+                type="text"
+                id="descripcion-anio"
+                v-model="nuevoAnio.descripcion" 
+                placeholder="Ej: Año fiscal 2024"
+                class="form-input"
+              />
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button @click="cerrarModalAnio" class="btn-cancelar">Cancelar</button>
+          <button @click="guardarNuevoAnio" class="btn-guardar" :disabled="guardandoAnio">
+            {{ guardandoAnio ? 'Creando...' : 'Crear Año' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -420,11 +551,35 @@ import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 import apiUrl from "../../config.js"
 
+
 // Año actual o seleccionado
-const anioActual = ref(new Date().getFullYear())
+const anioActual = ref(null)
 const mesSeleccionadoFiltro = ref('')
 const cargando = ref(false)
 const datosIndicadores = ref(null)
+
+// Variables para gestión dinámica de años
+const aniosDisponibles = ref([])
+const mostrarModalAnio = ref(false)
+const nuevoAnio = ref({
+  anio: null,
+  descripcion: ''
+})
+const guardandoAnio = ref(false)
+
+// Estado para tickets del periodo
+const ticketsPeriodo = ref([])
+const resumenTicketsPeriodo = ref({
+  total: 0,
+  cerrados: 0,
+  en_progreso: 0,
+  abiertos: 0
+})
+const cargandoTickets = ref(false)
+const currentPage = ref(1)
+const itemsPerPage = ref(5)
+const totalTickets = ref(0)
+const totalPages = ref(0)
 
 // Datos de ejemplo (se sobrescribirán con datos reales)
 const meses = ref([])
@@ -546,6 +701,32 @@ const porcentajeMetaDisplay = computed(() => {
     : '—'
 })
 
+import { watch } from 'vue'
+
+// Watcher para cargar tickets cuando cambia el mes seleccionado
+watch(mesSeleccionadoFiltro, (nuevoMes) => {
+  if (nuevoMes) {
+    currentPage.value = 1 // Resetear página al cambiar mes
+    cargarTicketsPeriodo()
+  } else {
+    ticketsPeriodo.value = []
+  }
+})
+
+const mesesFiltrados = computed(() => {
+  if (!meses.value.length) return []
+  if (!mesSeleccionadoFiltro.value) return meses.value
+  return meses.value.filter(m => m.mes_numero === mesSeleccionadoFiltro.value)
+})
+
+const analisisFiltrados = computed(() => {
+  if (!acciones_list.value) return []
+  if (!mesSeleccionadoFiltro.value) return acciones_list.value
+  
+  // Filtrar por mes seleccionado (comparando números)
+  return acciones_list.value.filter(item => item.mes === mesSeleccionadoFiltro.value)
+})
+
 const totales = computed(() => {
   if (!datosIndicadores.value) {
     return {
@@ -558,6 +739,24 @@ const totales = computed(() => {
       meta: porcentajeMetaDisplay.value,
       totalIngresaron: 0,
       ticketsAbiertos: 0,
+    }
+  }
+
+  // Si hay filtro de mes, calcular totales solo para ese mes
+  if (mesSeleccionadoFiltro.value) {
+    const mesData = meses.value.find(m => m.mes_numero === mesSeleccionadoFiltro.value)
+    if (mesData) {
+      return {
+        totalVencer: mesData.totalVencer,
+        cerradasOportunamente: mesData.cerradasOportunamente,
+        cerradasFueraTiempo: mesData.cerradasFueraTiempo,
+        sinRegistrar: mesData.sinRegistrar,
+        indiceCumplimiento: mesData.indiceCumplimiento,
+        acumuladoAnio: mesData.acumuladoAnio, // Mantener acumulado o mostrar solo del mes? Generalmente acumulado es anual.
+        meta: porcentajeMetaDisplay.value,
+        totalIngresaron: mesData.totalIngresaron,
+        ticketsAbiertos: mesData.ticketsAbiertos,
+      }
     }
   }
 
@@ -644,6 +843,59 @@ async function cargarIndicadores() {
     console.error('Error cargando indicadores:', error)
   } finally {
     cargando.value = false
+  }
+}
+
+// Función para cargar tickets del periodo seleccionado
+const cargarTicketsPeriodo = async () => {
+  if (!mesSeleccionadoFiltro.value) {
+    ticketsPeriodo.value = []
+    return
+  }
+
+  try {
+    cargandoTickets.value = true
+    const response = await axios.post(
+      `${apiUrl}/dashboard/obtener_tickets_periodo`,
+      {
+        anio: anioActual.value,
+        mes: mesSeleccionadoFiltro.value,
+        page: currentPage.value,
+        limit: itemsPerPage.value
+      },
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    )
+
+    if (response.status === 200 && response.data.data) {
+      ticketsPeriodo.value = response.data.data.tickets || []
+      resumenTicketsPeriodo.value = response.data.data.resumen || {
+        total: 0,
+        cerrados: 0,
+        en_progreso: 0,
+        abiertos: 0
+      }
+      // Actualizar paginación
+      if (response.data.data.pagination) {
+        totalTickets.value = response.data.data.pagination.total_records || 0
+        totalPages.value = response.data.data.pagination.total_pages || 0
+      }
+    }
+  } catch (error) {
+    console.error('Error cargando tickets del periodo:', error)
+    ticketsPeriodo.value = []
+  } finally {
+    cargandoTickets.value = false
+  }
+}
+
+const cambiarPagina = (nuevaPagina) => {
+  if (nuevaPagina >= 1 && nuevaPagina <= totalPages.value) {
+    currentPage.value = nuevaPagina
+    cargarTicketsPeriodo()
   }
 }
 
@@ -850,7 +1102,101 @@ function getEstadoTexto(valor) {
   return 'Inaceptable';
 }
 
+// Funciones para gestión de años
+const cargarAniosDisponibles = async () => {
+  try {
+    const response = await axios.post(
+      `${apiUrl}/dashboard/obtener_anios`,
+      {},
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    )
+
+    if (response.status === 200 && response.data.data) {
+      aniosDisponibles.value = response.data.data.map(a => a.anio)
+      
+      // Si hay años disponibles y el año actual no está en la lista, seleccionar el primero
+      if (aniosDisponibles.value.length > 0 && !aniosDisponibles.value.includes(anioActual.value)) {
+        anioActual.value = aniosDisponibles.value[0]
+      }
+    }
+  } catch (error) {
+    console.error('Error cargando años disponibles:', error)
+    // Dejar la lista vacía si hay error
+    aniosDisponibles.value = []
+  }
+}
+
+const abrirModalCrearAnio = () => {
+  nuevoAnio.value = {
+    anio: null,
+    descripcion: ''
+  }
+  mostrarModalAnio.value = true
+}
+
+const cerrarModalAnio = () => {
+  mostrarModalAnio.value = false
+  nuevoAnio.value = {
+    anio: null,
+    descripcion: ''
+  }
+}
+
+const guardarNuevoAnio = async () => {
+  if (!nuevoAnio.value.anio) {
+    alert('Por favor ingrese un año válido')
+    return
+  }
+
+  // Validar que sea un número de 4 dígitos
+  const anioNum = parseInt(nuevoAnio.value.anio)
+  if (isNaN(anioNum) || anioNum < 1900 || anioNum > 2100) {
+    alert('El año debe ser un número entre 1900 y 2100')
+    return
+  }
+
+  guardandoAnio.value = true
+
+  try {
+    const response = await axios.post(
+      `${apiUrl}/dashboard/crear_anio`,
+      {
+        anio: anioNum,
+        descripcion: nuevoAnio.value.descripcion
+      },
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    )
+
+    if (response.status === 200) {
+      alert('Año creado exitosamente')
+      cerrarModalAnio()
+      await cargarAniosDisponibles()
+      // Seleccionar el año recién creado
+      anioActual.value = anioNum
+      cargarIndicadores()
+    }
+  } catch (error) {
+    console.error('Error creando año:', error)
+    if (error.response?.data?.message) {
+      alert(error.response.data.message)
+    } else {
+      alert('Error al crear el año')
+    }
+  } finally {
+    guardandoAnio.value = false
+  }
+}
+
 onMounted(() => {
+  cargarAniosDisponibles()
   cargarIndicadores()
   setTimeout(() => {
     // Mostrar los datos de los meses en consola para depuración
@@ -907,6 +1253,24 @@ onMounted(() => {
 .year-selector:focus {
   border-color: var(--gtic-secondary);
   box-shadow: 0 0 0 1px rgba(122, 199, 137, 0.35);
+}
+
+.btn-crear-anio {
+  padding: 6px 14px;
+  background: #2e4360;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-crear-anio:hover {
+  background: #22396a;
+  box-shadow: 0 2px 8px rgba(34, 57, 106, 0.25);
 }
 
 
@@ -1453,7 +1817,6 @@ h2 {
   );
   border: 1px solid #e2e6ea;
   margin-bottom: 0;
-  padding-bottom: 28px; /* Espacio para las etiquetas de meses */
   min-width: 0;
   width: 100%;
   overflow-x: auto;
@@ -2077,6 +2440,199 @@ h2 {
   text-align: center;
   background: #f9fafb !important;
   padding: 6px !important;
+}
+
+/* Estilos para la lista de tickets */
+.loading-tickets {
+  text-align: center;
+  padding: 32px;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.tickets-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Summary Cards */
+.tickets-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 3px;
+}
+
+.summary-card {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+}
+
+.card-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+
+.card-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* Card Variants */
+.card-total {
+  background: #fff;
+  border-color: #e2e8f0;
+}
+.card-total .card-label { color: #64748b; }
+.card-total .card-value { color: #1e293b; }
+
+.card-cerrados {
+  background: #ecfdf5; /* Light Green */
+  border-color: #d1fae5;
+}
+.card-cerrados .card-label { color: #059669; }
+.card-cerrados .card-value { color: #059669; }
+
+.card-progreso {
+  background: #fffbeb; /* Light Orange/Yellow */
+  border-color: #fef3c7;
+}
+.card-progreso .card-label { color: #d97706; }
+.card-progreso .card-value { color: #d97706; }
+
+.card-abiertos {
+  background: #fef2f2; /* Light Red */
+  border-color: #fee2e2;
+}
+.card-abiertos .card-label { color: #dc2626; }
+.card-abiertos .card-value { color: #dc2626; }
+
+
+/* Table Styles */
+.table-scroll-wrapper {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.tickets-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  min-width: 800px; /* Ensure scroll on small screens */
+}
+
+.tickets-table th {
+  text-align: left;
+  padding: 12px 16px;
+  background: #fff;
+  color: #1e293b;
+  font-weight: 700;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.tickets-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+  background: #fff;
+  vertical-align: middle;
+}
+
+.tickets-table tr:last-child td {
+  border-bottom: none;
+}
+
+.ticket-id {
+  font-weight: 600;
+  color: #22396a;
+}
+
+.ticket-responsable,
+.ticket-solicitante,
+.ticket-macro,
+.ticket-tipo {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+.ticket-fecha {
+  white-space: nowrap;
+  color: #64748b;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+  min-width: 80px;
+}
+
+.status-1 { /* Abierto */
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.status-2 { /* En Proceso */
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-3, .status-4 { /* Completado / Cerrado */
+  background: #dcfce7;
+  color: #166534;
+}
+
+/* Pagination Controls */
+.pagination-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.btn-pagination {
+  padding: 6px 12px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 6px;
+  color: #475569;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-pagination:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.btn-pagination:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #f8fafc;
+}
+
+.pagination-info {
+  font-size: 0.85rem;
+  color: #64748b;
+  font-weight: 500;
 }
 </style>
 
