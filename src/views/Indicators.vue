@@ -1,3 +1,4 @@
+
 <template>
   <div class="indicators">
     <div class="header">
@@ -5,6 +6,10 @@
       <div class="header-controls">
         <select v-model="anioActual" @change="cargarIndicadores" class="year-selector">
           <option v-for="year in [2024, 2025, 2026]" :key="year" :value="year">{{ year }}</option>
+        </select>
+        <select v-model="mesSeleccionadoFiltro" class="month-selector">
+          <option value="">Todos los meses</option>
+          <option v-for="mes in listaMeses" :key="mes.numero" :value="mes.numero">{{ mes.nombre }}</option>
         </select>
         <button @click="cargarIndicadores" class="refresh-btn" :disabled="cargando">
           {{ cargando ? '🔄 Cargando...' : '🔄 Actualizar' }}
@@ -71,7 +76,6 @@
                   <th rowspan="2">Meta</th>
                   <th rowspan="2">Nº total de Tickets que ingresaron en el mes</th>
                   <th rowspan="2">Nº Tickets abiertos pendientes del mes</th>
-                  <!-- <th rowspan="2">Observaciones</th> -->
                 </tr>
               </thead>
               <tbody>
@@ -112,6 +116,92 @@
               </tbody>
             </table>
           </div>
+          
+          <!-- Tabla de análisis de causas y acciones - Aprovechando el espacio -->
+          <div style="margin-top: 24px;">
+            <table class="analisis-causas-table">
+              <caption class="analisis-caption">
+              <div class="analisis-caption-content">
+                <div>
+                  4. Análisis de causas y acciones
+                  <div class="analisis-subtitle">Registro mensual de causas principales, acciones correctivas y seguimiento.</div>
+                </div>
+                <button type="button" class="btn-agregar-analisis" @click="abrirModalAnalisis(null)">+ Agregar análisis</button>
+              </div>
+              </caption>
+              <thead>
+                <tr class="analisis-header-row">
+                  <th rowspan="2" class="analisis-th analisis-th-mes">MES</th>
+                  <th class="analisis-th analisis-th-analisis">
+                    <div class="analisis-th-title">
+                      ANÁLISIS (CAUSAS PRINCIPALES)
+                      <span
+                        class="info-icon"
+                        title="Para llegar a las causas principales:&#10;• Identifique dónde se generan las desviaciones y su pareto.&#10;• Filtre las causas con lluvia de ideas y análisis causa y efecto-7M&#10;• Reduzca las causas a máximo 3 que se encuentren validadas (apoye en la técnica 5 por qué)"
+                      >i</span>
+                    </div>
+                  </th>
+                  <th class="analisis-th analisis-th-acciones">
+                    <div class="analisis-th-title">
+                      ACCIONES A TOMAR FRENTE AL ANÁLISIS
+                      <span
+                        class="info-icon"
+                        title="Liste las acciones con las que se van a eliminar/controlar las causas identificadas.&#10;Puede relacionar alguna ACPM que se encuentre trabajando."
+                      >i</span>
+                    </div>
+                  </th>
+                  <th class="analisis-th analisis-th-responsable">
+                    <div class="analisis-th-title">
+                      RESPONSABLE (NOMBRE-CARGO)
+                      <span
+                        class="info-icon"
+                        title="Relacione el nombre y cargo del responsable de llevar a cabo las acciones definidas"
+                      >i</span>
+                    </div>
+                  </th>
+                  <th class="analisis-th analisis-th-fecha">
+                    <div class="analisis-th-title">
+                      FECHA DE COMPROMISO
+                      <span
+                        class="info-icon"
+                        title="Indique la fecha (DD/MM/AAAA) en que la acción quedará ejecutada"
+                      >i</span>
+                    </div>
+                  </th>
+                  <th class="analisis-th analisis-th-seguimiento">
+                    <div class="analisis-th-title">
+                      SEGUIMIENTO
+                      <span
+                        class="info-icon"
+                        title="Relacione el estado de cumplimiento de las acciones definidas"
+                      >i</span>
+                    </div>
+                  </th>
+                  <th rowspan="2" class="analisis-th analisis-th-actions">ACCIONES</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="acciones_list.length === 0">
+                  <td colspan="7" class="analisis-empty-message">
+                    No hay análisis de causas registrados para el periodo seleccionado.
+                  </td>
+                </tr>
+                <tr v-else v-for="accion in acciones_list" :key="accion.id">
+                  <td class="analisis-td-mes">{{ obtenerNombreMes(accion.mes) }}</td>
+                  <td class="analisis-td">{{ accion.analisis }}</td>
+                  <td class="analisis-td">{{ accion.acciones }}</td>
+                  <td class="analisis-td">{{ accion.responsable }}</td>
+                  <td class="analisis-td-fecha">{{ formatearFecha(accion.fecha_compromiso) }}</td>
+                  <td class="analisis-td">{{ accion.seguimiento }}</td>
+                  <td class="analisis-td-actions">
+                    <button @click="abrirModalAnalisis(accion)" class="btn-editar-analisis" title="Editar análisis">
+                      ✏️
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
         <div class="indicadores-col-graficas">
           <section class="simple-bar-chart-outer">
@@ -142,11 +232,10 @@
                         :style="{ height: (mes.cerradasOportunamente / 120 * 100) + '%', width: '28px' }"
                         :title="`${mes.nombre}: ${mes.cerradasOportunamente} oportunos`"
                       ></div>
-                      <span class="simple-bar-label">{{ mes.nombre.slice(0, 3) }}</span>
+                        <span class="simple-bar-label">{{ mes.nombre.slice(0, 3) }}</span>
                     </div>
                   </div>
                 </div>
-                <div class="simple-legend simple-legend-right" style="display: none;"></div>
                 <div class="simple-legend simple-legend-bottom">
                   <div class="legend-item"><span class="legend-color legend-blue"></span> Índice de cumplimiento</div>
                   <div class="legend-item"><span class="legend-color legend-gray"></span> % Acumulado año</div>
@@ -189,6 +278,16 @@
               </div>
             </div>
           </section>
+
+          <!-- Nueva Card: Tickets del periodo -->
+          <section class="tickets-periodo-card">
+            <h3>Tickets del periodo</h3>
+            <p class="tickets-periodo-desc">Detalle de tickets asociados al indicador por mes.</p>
+            
+            <div class="tickets-periodo-empty">
+              <p>Selecciona un mes en el filtro para ver el detalle de los tickets.</p>
+            </div>
+          </section>
         </div>
       </div>
     </div>
@@ -201,8 +300,8 @@
           <button @click="cerrarModal" class="btn-close">✕</button>
         </div>
         <div class="modal-body">
-          <textarea 
-            v-model="observacionTexto" 
+          <textarea
+            v-model="observacionTexto"
             placeholder="Escribe las observaciones del mes..."
             rows="6"
           ></textarea>
@@ -211,6 +310,104 @@
           <button @click="cerrarModal" class="btn-cancelar">Cancelar</button>
           <button @click="guardarObservacion" class="btn-guardar" :disabled="guardando">
             {{ guardando ? 'Guardando...' : 'Guardar' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Análisis de Causas y Acciones -->
+    <div v-if="modalAnalisis" class="modal-overlay" @click="cerrarModalAnalisis">
+      <div class="modal-content modal-content-wide" @click.stop>
+        <div class="modal-header">
+          <h3>{{ analisisEditando ? 'Editar' : 'Agregar' }} Análisis de Causas y Acciones</h3>
+          <button @click="cerrarModalAnalisis" class="btn-close">✕</button>
+        </div>
+        <div class="modal-body">
+          <form @submit.prevent="guardarAnalisis" class="form-analisis">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="mes-analisis">Mes *</label>
+                <select 
+                  id="mes-analisis" 
+                  v-model="formAnalisis.mes" 
+                  required
+                  :disabled="analisisEditando"
+                  class="form-select"
+                >
+                  <option value="">Seleccione un mes</option>
+                  <option v-for="mes in listaMeses" :key="mes.numero" :value="mes.numero">
+                    {{ mes.nombre }}
+                  </option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="analisis">Análisis (Causas Principales) *</label>
+              <textarea 
+                id="analisis"
+                v-model="formAnalisis.analisis" 
+                placeholder="Identifique dónde se generan las desviaciones y su pareto..."
+                rows="4"
+                required
+                class="form-textarea"
+              ></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="acciones">Acciones a Tomar Frente al Análisis *</label>
+              <textarea 
+                id="acciones"
+                v-model="formAnalisis.acciones" 
+                placeholder="Liste las acciones con las que se van a eliminar/controlar las causas..."
+                rows="4"
+                required
+                class="form-textarea"
+              ></textarea>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="responsable">Responsable (Nombre-Cargo) *</label>
+                <input 
+                  type="text"
+                  id="responsable"
+                  v-model="formAnalisis.responsable" 
+                  placeholder="Ej: Juan Pérez - Coordinador TIC"
+                  required
+                  class="form-input"
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="fecha-compromiso">Fecha de Compromiso *</label>
+                <input 
+                  type="date"
+                  id="fecha-compromiso"
+                  v-model="formAnalisis.fecha_compromiso" 
+                  required
+                  class="form-input"
+                />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="seguimiento">Seguimiento *</label>
+              <textarea 
+                id="seguimiento"
+                v-model="formAnalisis.seguimiento" 
+                placeholder="Relacione el estado de cumplimiento de las acciones definidas..."
+                rows="3"
+                required
+                class="form-textarea"
+              ></textarea>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button @click="cerrarModalAnalisis" class="btn-cancelar">Cancelar</button>
+          <button @click="guardarAnalisis" class="btn-guardar" :disabled="guardandoAnalisis">
+            {{ guardandoAnalisis ? 'Guardando...' : 'Guardar' }}
           </button>
         </div>
       </div>
@@ -225,17 +422,117 @@ import apiUrl from "../../config.js"
 
 // Año actual o seleccionado
 const anioActual = ref(new Date().getFullYear())
+const mesSeleccionadoFiltro = ref('')
 const cargando = ref(false)
 const datosIndicadores = ref(null)
 
 // Datos de ejemplo (se sobrescribirán con datos reales)
 const meses = ref([])
 
+// Función para abrir el modal de observaciones
+const abrirModalObservaciones = async (mes) => {
+  mesSeleccionado.value = mes
+  observacionTexto.value = ''
+
+  try {
+    const response = await axios.post(
+      `${apiUrl}/dashboard/obtener_observacion_mes`,
+      {
+        anio: anioActual.value,
+        mes: mes.mes_numero
+      },
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    )
+
+    if (response.status === 200 && response.data.data) {
+      observacionTexto.value = response.data.data.observaciones || ''
+    }
+  } catch (error) {
+    console.error('Error cargando observación:', error)
+  }
+
+  modalObservaciones.value = true
+}
+
+// Función para cerrar el modal
+const cerrarModal = () => {
+  modalObservaciones.value = false
+  mesSeleccionado.value = null
+  observacionTexto.value = ''
+}
+
+// Función para guardar la observación
+const guardarObservacion = async () => {
+  if (!mesSeleccionado.value) return
+
+  try {
+    guardando.value = true
+    const response = await axios.post(
+      `${apiUrl}/dashboard/guardar_observacion_mes`,
+      {
+        anio: anioActual.value,
+        mes: mesSeleccionado.value.mes_numero,
+        observaciones: observacionTexto.value
+      },
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    )
+
+    if (response.status === 200) {
+      console.log('Observación guardada exitosamente')
+      cerrarModal()
+    }
+  } catch (error) {
+    console.error('Error guardando observación:', error)
+  } finally {
+    guardando.value = false
+  }
+}
+
 // Estado del modal de observaciones
+
 const modalObservaciones = ref(false)
 const mesSeleccionado = ref(null)
 const observacionTexto = ref('')
 const guardando = ref(false)
+
+// Estado del modal de análisis de causas
+const modalAnalisis = ref(false)
+const analisisEditando = ref(null)
+const guardandoAnalisis = ref(false)
+const formAnalisis = ref({
+  mes: '',
+  analisis: '',
+  acciones: '',
+  responsable: '',
+  fecha_compromiso: '',
+  seguimiento: ''
+})
+
+// Lista de meses para el selector
+const listaMeses = [
+  { numero: 1, nombre: 'Enero' },
+  { numero: 2, nombre: 'Febrero' },
+  { numero: 3, nombre: 'Marzo' },
+  { numero: 4, nombre: 'Abril' },
+  { numero: 5, nombre: 'Mayo' },
+  { numero: 6, nombre: 'Junio' },
+  { numero: 7, nombre: 'Julio' },
+  { numero: 8, nombre: 'Agosto' },
+  { numero: 9, nombre: 'Septiembre' },
+  { numero: 10, nombre: 'Octubre' },
+  { numero: 11, nombre: 'Noviembre' },
+  { numero: 12, nombre: 'Diciembre' }
+]
+
+const acciones_list = ref([])
 
 const porcentajeMeta = computed(() => {
   if (!datosIndicadores.value || !datosIndicadores.value.indicadores?.length) return null
@@ -263,12 +560,12 @@ const totales = computed(() => {
       ticketsAbiertos: 0,
     }
   }
-  
+
   const totals = datosIndicadores.value.totales
-  
+
   // Calcular la suma de tickets abiertos
   const sumaTicketsAbiertos = meses.value.reduce((sum, mes) => sum + (mes.ticketsAbiertos || 0), 0)
-  
+
   return {
     totalVencer: totals.total_completados,
     cerradasOportunamente: totals.oportunos,
@@ -299,9 +596,9 @@ function calcularAlturaBarra(valor) {
 
 function getIndicadorClass(valor) {
   if (valor === '#¡DIV/0!' || valor === '' || valor === null) return ''
-  
+
   const porcentaje = parseFloat(valor)
-  
+
   if (porcentaje >= 85) return 'adecuado'
   if (porcentaje >= 70) return 'aceptable'
   return 'inaceptable'
@@ -321,10 +618,10 @@ async function cargarIndicadores() {
         }
       }
     )
-    
+
     if (response.status === 200) {
       datosIndicadores.value = response.data.data
-      
+
       // Mapear los datos del backend al formato de la tabla
       meses.value = datosIndicadores.value.indicadores.map(ind => ({
         nombre: ind.mes,
@@ -339,6 +636,9 @@ async function cargarIndicadores() {
         totalIngresaron: ind.total_ingresados,
         ticketsAbiertos: ind.tickets_abiertos
       }))
+      
+      // Cargar análisis de causas
+      await cargarAnalisisCausas()
     }
   } catch (error) {
     console.error('Error cargando indicadores:', error)
@@ -347,17 +647,15 @@ async function cargarIndicadores() {
   }
 }
 
-// Función para abrir el modal de observaciones
-const abrirModalObservaciones = async (mes) => {
-  mesSeleccionado.value = mes
-  observacionTexto.value = ''
-  
+
+
+// Funciones para análisis de causas y acciones
+const cargarAnalisisCausas = async () => {
   try {
     const response = await axios.post(
-      `${apiUrl}/dashboard/obtener_observacion_mes`,
+      `${apiUrl}/dashboard/obtener_analisis_causas`,
       {
-        anio: anioActual.value,
-        mes: mes.mes_numero
+        anio: anioActual.value
       },
       {
         headers: {
@@ -365,53 +663,114 @@ const abrirModalObservaciones = async (mes) => {
         }
       }
     )
-    
+
     if (response.status === 200 && response.data.data) {
-      observacionTexto.value = response.data.data.observaciones || ''
+      acciones_list.value = response.data.data
     }
   } catch (error) {
-    console.error('Error cargando observación:', error)
+    console.error('Error cargando análisis de causas:', error)
+    acciones_list.value = []
+  }
+}
+
+const abrirModalAnalisis = (analisis = null) => {
+  analisisEditando.value = analisis
+  
+  if (analisis) {
+    // Modo edición
+    formAnalisis.value = {
+      mes: analisis.mes,
+      analisis: analisis.analisis || '',
+      acciones: analisis.acciones || '',
+      responsable: analisis.responsable || '',
+      fecha_compromiso: analisis.fecha_compromiso || '',
+      seguimiento: analisis.seguimiento || ''
+    }
+  } else {
+    // Modo creación
+    formAnalisis.value = {
+      mes: '',
+      analisis: '',
+      acciones: '',
+      responsable: '',
+      fecha_compromiso: '',
+      seguimiento: ''
+    }
   }
   
-  modalObservaciones.value = true
+  modalAnalisis.value = true
 }
 
-// Función para cerrar el modal
-const cerrarModal = () => {
-  modalObservaciones.value = false
-  mesSeleccionado.value = null
-  observacionTexto.value = ''
+const cerrarModalAnalisis = () => {
+  modalAnalisis.value = false
+  analisisEditando.value = null
+  formAnalisis.value = {
+    mes: '',
+    analisis: '',
+    acciones: '',
+    responsable: '',
+    fecha_compromiso: '',
+    seguimiento: ''
+  }
 }
 
-// Función para guardar la observación
-const guardarObservacion = async () => {
-  if (!mesSeleccionado.value) return
-  
+const guardarAnalisis = async () => {
   try {
-    guardando.value = true
+    guardandoAnalisis.value = true
+    
+    const payload = {
+      anio: anioActual.value,
+      mes: parseInt(formAnalisis.value.mes),
+      analisis: formAnalisis.value.analisis,
+      acciones: formAnalisis.value.acciones,
+      responsable: formAnalisis.value.responsable,
+      fecha_compromiso: formAnalisis.value.fecha_compromiso,
+      seguimiento: formAnalisis.value.seguimiento
+    }
+
+    if (analisisEditando.value) {
+      payload.id = analisisEditando.value.id
+    }
+
     const response = await axios.post(
-      `${apiUrl}/dashboard/guardar_observacion_mes`,
-      {
-        anio: anioActual.value,
-        mes: mesSeleccionado.value.mes_numero,
-        observaciones: observacionTexto.value
-      },
+      `${apiUrl}/dashboard/guardar_analisis_causas`,
+      payload,
       {
         headers: {
           Accept: "application/json",
         }
       }
     )
-    
+
     if (response.status === 200) {
-      console.log('Observación guardada exitosamente')
-      cerrarModal()
+      console.log('Análisis guardado exitosamente')
+      await cargarAnalisisCausas()
+      cerrarModalAnalisis()
     }
   } catch (error) {
-    console.error('Error guardando observación:', error)
+    console.error('Error guardando análisis:', error)
+    if (error.response?.data?.message) {
+      alert(error.response.data.message)
+    }
   } finally {
-    guardando.value = false
+    guardandoAnalisis.value = false
   }
+}
+
+// Función auxiliar para obtener nombre del mes
+const obtenerNombreMes = (numeroMes) => {
+  const mes = listaMeses.find(m => m.numero === numeroMes)
+  return mes ? mes.nombre : ''
+}
+
+// Función auxiliar para formatear fecha
+const formatearFecha = (fecha) => {
+  if (!fecha) return ''
+  const date = new Date(fecha)
+  const dia = String(date.getDate()).padStart(2, '0')
+  const mes = String(date.getMonth() + 1).padStart(2, '0')
+  const anio = date.getFullYear()
+  return `${dia}/${mes}/${anio}`
 }
 
 // Calcular el máximo de tickets del año para escalar las barras a porcentaje
@@ -608,8 +967,9 @@ h2 {
 }
 
 .info-table th {
-  background: var(--gtic-primary);
-  color: black;
+  /* background: var(--gtic-primary); */
+  background-color: #22396a;
+  color: white;
   padding: 10px 8px;
   text-align: center;
   font-weight: 600;
@@ -673,7 +1033,7 @@ h2 {
 .results-table thead th {
   background: #22396a;
   color: #fff;
-  padding: 10px 8px;
+  padding: 5px 8px;
   text-align: center;
   font-weight: 600;
   border: 1px solid #22396a;
@@ -695,7 +1055,7 @@ h2 {
 
 
 .results-table tbody td {
-  padding: 8px 8px;
+  padding: 1px 6px;
   border: 1px solid #dde3ef;
   text-align: center;
   color: #22396a;
@@ -773,7 +1133,7 @@ h2 {
     background: white;
     padding: 0;
   }
-  
+
   section {
     box-shadow: none;
     page-break-inside: avoid;
@@ -860,22 +1220,22 @@ h2 {
 
 .modal-footer {
   display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 20px;
-  border-top: 1px solid #e0e0e0;
-}
-
-.modal-footer button {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 4px;
+  justify-content: center;
+  gap: 0px;
+  margin-top: 8px;
+  margin-bottom: 0;
+  width: 100%;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #22396a;
+  letter-spacing: 0.5px;
+  user-select: none;
   cursor: pointer;
   font-size: 14px;
-  transition: background 0.2s;
-}
-
-.btn-cancelar {
+  min-width: 18px;
+  text-align: center;
+  white-space: nowrap;
+  flex: 1 1 0;
   background: #f5f5f5;
   color: #333;
 }
@@ -1038,7 +1398,7 @@ h2 {
 .simple-bar-chart {
   background: var(--gtic-surface);
   border-radius: 10px;
-  padding: 16px 18px 60px;
+  padding: 16px 18px 50px;
   box-shadow: 0 8px 18px rgba(19, 41, 64, 0.06);
   border: 1px solid #e2e6ea;
   margin-top: 20px;
@@ -1093,18 +1453,19 @@ h2 {
   );
   border: 1px solid #e2e6ea;
   margin-bottom: 0;
-  padding-bottom: 0;
+  padding-bottom: 28px; /* Espacio para las etiquetas de meses */
   min-width: 0;
   width: 100%;
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: visible; /* Permitir que las etiquetas sean visibles */
 }
 .simple-bar-chart.compact {
   min-width: 0;
   width: 100%;
   max-width: 100%;
-  margin: 0 auto 48px auto;
+  margin: 0 auto 24px auto; /* Reducir margen inferior */
   box-sizing: border-box;
+  padding-bottom: 18px; /* Espacio para leyenda */
 }
 .simple-bar-group {
   flex: 1;
@@ -1130,27 +1491,7 @@ h2 {
   background: #60a5fa;
   margin-top: 2px;
 }
-.simple-bar-label {
-  position: absolute;
-  bottom: -18px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 0.68rem;
-  color: #4b5563;
-  font-weight: 500;
-  margin-top: 2px;
-  pointer-events: none;
-  white-space: nowrap;
-}
-.simple-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px 32px;
-  font-size: 0.68rem;
-  margin-top: 10px;
-  align-items: center;
-  justify-content: center;
-}
+
 
 .simple-line-svg {
   position: absolute;
@@ -1182,17 +1523,11 @@ h2 {
   align-items: center;
   justify-content: center;
 }
-.simple-legend-right {
-  flex-direction: column;
-  min-width: 180px;
-  margin-top: 0;
-  margin-left: 18px;
-}
 .simple-legend-bottom {
   flex-direction: row;
   justify-content: center;
   width: 100%;
-  margin-top: 18px;
+  margin-top: 60px;
   margin-left: 0;
 }
 .legend-item {
@@ -1296,6 +1631,59 @@ h2 {
   background: #22396a;
   margin-bottom: 4px;
 }
+
+/* Card Tickets del periodo */
+.tickets-periodo-card {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(19,41,64,0.07);
+  border: 1px solid #e2e6ea;
+  padding: 22px 18px 18px 18px;
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tickets-periodo-card h3 {
+  font-size: 1.08rem;
+  font-weight: 700;
+  color: #22396a;
+  margin: 0 0 4px 0;
+}
+
+.tickets-periodo-desc {
+  font-size: 0.92rem;
+  color: #6b7280;
+  margin-bottom: 16px;
+}
+
+.tickets-periodo-empty {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 32px;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.95rem;
+}
+
+.month-selector {
+  min-width: 140px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--gtic-accent);
+  background: var(--gtic-surface);
+  font-size: 0.85rem;
+  color: var(--gtic-text-main);
+  outline: none;
+  cursor: pointer;
+}
+
+.month-selector:focus {
+  border-color: var(--gtic-secondary);
+  box-shadow: 0 0 0 1px rgba(122, 199, 137, 0.35);
+}
+
 .indicador-torta-estado-badge.adecuado {
   background: #22c55e;
 }
@@ -1340,7 +1728,7 @@ h2 {
 .simple-bar-chart-outer {
   width: 100%;
   overflow-x: auto;
-  padding-bottom: 50px;
+  padding-bottom: 30px;
   box-sizing: border-box;
 }
 .simple-bar-chart-scroll {
@@ -1370,6 +1758,325 @@ h2 {
     width: 100%;
     max-width: 100%;
   }
+}
+
+/* Estilos para tabla de análisis de causas y acciones */
+.analisis-causas-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #b4c6e7;
+  box-shadow: 0 2px 8px rgba(19, 41, 64, 0.04);
+}
+
+.analisis-caption {
+  caption-side: top;
+  text-align: left;
+  font-weight: bold;
+  font-size: 1.05rem;
+  color: #22396a;
+  padding-bottom: 8px;
+}
+
+.analisis-caption-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.analisis-subtitle {
+  font-weight: 400;
+  font-size: 0.98rem;
+  color: #4b5563;
+  margin-top: 2px;
+}
+
+.analisis-header-row {
+  background: #22396a;
+  color: #fff;
+}
+
+.analisis-th {
+  text-align: center;
+  vertical-align: middle;
+  font-size: 0.78rem;
+  padding: 12px 8px;
+  border: 1px solid #4178b8;
+  font-weight: 600;
+}
+
+.analisis-th-mes {
+  min-width: 70px;
+}
+
+.analisis-th-analisis {
+  min-width: 220px;
+}
+
+.analisis-th-acciones {
+  min-width: 180px;
+}
+
+.analisis-th-responsable {
+  min-width: 140px;
+}
+
+.analisis-th-fecha {
+  min-width: 120px;
+}
+
+.analisis-th-seguimiento {
+  min-width: 120px;
+}
+
+.analisis-th-title {
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.analisis-empty-message {
+  text-align: center;
+  padding: 16px;
+  color: #6b7280;
+  background: #f4f8fc;
+}
+
+/* Nombres de los meses debajo de la gráfica de barras */
+.simple-bar-month-labels {
+  display: flex;
+  justify-content: center;
+  margin-top: 50px;
+  width: 100%;
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: #22396a;
+  letter-spacing: 0.5px;
+  user-select: none;
+}
+.simple-bar-month-label {
+  min-width: 2px;
+  text-align: center;
+  white-space: nowrap;
+  flex: 1 1 0;
+}
+
+/* Etiquetas de meses en la gráfica de barras - CORREGIDO */
+.simple-bar-label {
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.68rem;
+  color: #4b5563;
+  font-weight: 500;
+  margin-top: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+/* Botón + Agregar análisis para tabla de análisis */
+.btn-agregar-analisis {
+  background: #2e4360;
+  color: #fff;
+  border: none;
+  border-radius: 22px;
+  padding: 7px 22px 7px 18px;
+  font-size: 1rem;
+  font-weight: 400;
+  cursor: pointer;
+  transition: background 0.18s;
+  box-shadow: none;
+  outline: none;
+  display: inline-block;
+  margin-left: 10px;
+}
+.btn-agregar-analisis:hover {
+  background: #22396a;
+}
+
+/* Icono de información en cabeceras de tabla */
+.info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid white;
+  background: #5392ce;
+  color: #fff;
+  font-size: 11px;
+  font-weight: bold;
+  font-style: normal;
+  margin-left: 6px;
+  cursor: help;
+  user-select: none;
+  transition: background 0.2s;
+}
+.info-icon:hover {
+  background: #22396a;
+}
+
+/* Estilos para modal de análisis de causas y acciones */
+.modal-content-wide {
+  max-width: 750px;
+}
+
+.form-analisis {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #22396a;
+}
+
+.form-select,
+.form-input,
+.form-textarea {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.88rem;
+  color: #374151;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-select:focus,
+.form-input:focus,
+.form-textarea:focus {
+  outline: none;
+  border-color: #5b9bd5;
+  box-shadow: 0 0 0 3px rgba(91, 155, 213, 0.1);
+}
+
+.form-select:disabled {
+  background-color: #f3f4f6;
+  cursor: not-allowed;
+  color: #9ca3af;
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 90px;
+  line-height: 1.5;
+}
+
+.form-input[type="date"] {
+  cursor: pointer;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
+  margin-top: 0;
+}
+
+.modal-footer button {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 100px;
+}
+
+.btn-cancelar {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.btn-cancelar:hover {
+  background: #d1d5db;
+}
+
+.btn-guardar {
+  background: #2e4360;
+  color: white;
+}
+
+.btn-guardar:hover:not(:disabled) {
+  background: #22396a;
+  box-shadow: 0 2px 8px rgba(34, 57, 106, 0.25);
+}
+
+.btn-guardar:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Botón editar en tabla de análisis */
+.btn-editar-analisis {
+  background: #5b9bd5;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-editar-analisis:hover {
+  background: #4178b8;
+  box-shadow: 0 2px 6px rgba(65, 120, 184, 0.3);
+  transform: translateY(-1px);
+}
+
+.analisis-td {
+  text-align: left;
+  padding: 8px 10px !important;
+  font-size: 0.78rem;
+  color: #374151;
+  line-height: 1.4;
+}
+
+.analisis-td-mes {
+  text-align: center;
+  font-weight: 600;
+  background: #e7f3ff !important;
+  color: #22396a;
+}
+
+.analisis-td-fecha {
+  text-align: center;
+  font-size: 0.78rem;
+  color: #374151;
+}
+
+.analisis-td-actions {
+  text-align: center;
+  background: #f9fafb !important;
+  padding: 6px !important;
 }
 </style>
 
