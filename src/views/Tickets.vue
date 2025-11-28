@@ -249,6 +249,16 @@
               </select>
             </label>
 
+            <label v-if="form.tipoTicket === 2">
+              <span>Origen Estratégico
+                <span v-if="guardandoCampo === 'origen_estrategico'" class="saving-indicator">💾</span>
+              </span>
+              <select v-model="form.origenEstrategico" class="input" :class="{ 'saving': guardandoCampo === 'origen_estrategico' }" :disabled="isTicketCompletado">
+                <option value="">-- Seleccionar origen --</option>
+                <option v-for="o in origenesEstrategicos" :key="o.id" :value="o.id">{{ o.nombre }}</option>
+              </select>
+            </label>
+
             <label>
               <span>Macroproceso
                 <span v-if="guardandoCampo === 'macroproceso'" class="saving-indicator">💾</span>
@@ -551,6 +561,7 @@ const tiposSoporte = ref([]);
 const tiposTicket = ref([]);
 const macroprocesos = ref([]);
 const tiposNivel = ref([]);
+const origenesEstrategicos = ref([]);
 
 const asignados = computed(()=>{
   const nombres = new Set()
@@ -580,8 +591,27 @@ onMounted(async ()=>{
   await obtenerTipoTicket();
   await obtenerMacroprocesos();
   await obtenerTipoNivel();
+  await obtenerOrigenEstrategico();
 })
 watch(inbox, v=> localStorage.setItem('inbox_m365', JSON.stringify(v)), { deep:true })
+
+const obtenerOrigenEstrategico = async () => {
+  try {
+    const response = await axios.post(
+        `${apiUrl}/obtener_origen_estrategico`, {},
+        {
+            headers: {
+                Accept: "application/json",
+            }
+        }
+    );
+    if (response.status === 200) {
+        origenesEstrategicos.value = response.data.data || [];
+    }
+  } catch (error) {
+    console.error('Error al obtener orígenes estratégicos:', error);
+  }
+}
 
 const obtenerPrioridades = async () => {
   try {
@@ -1241,6 +1271,11 @@ watch(() => form.value.tipoSoporte, async (nuevoTS, anteriorTS) => {
 watch(() => form.value.tipoTicket, async (nuevoTT, anteriorTT) => {
   if (debeEjecutarWatcher(nuevoTT, anteriorTT)) {
     await actualizarCampoTicket('tipo_ticket', nuevoTT, 'Tipo de Ticket');
+    
+    // Si cambia a algo que no es estratégico (2), limpiar origen estratégico
+    if (nuevoTT != 2 && form.value.origenEstrategico) {
+      form.value.origenEstrategico = null;
+    }
   }
 });
 
@@ -1265,6 +1300,12 @@ watch(() => form.value.vencimiento, async (nuevoV, anteriorV) => {
 watch(() => form.value.nivel_id, async (nuevoN, anteriorN) => {
   if (debeEjecutarWatcher(nuevoN, anteriorN)) {
     await actualizarCampoTicket('nivel_id', nuevoN, 'Nivel');
+  }
+});
+
+watch(() => form.value.origenEstrategico, async (nuevoO, anteriorO) => {
+  if (debeEjecutarWatcher(nuevoO, anteriorO)) {
+    await actualizarCampoTicket('origen_estrategico', nuevoO, 'Origen Estratégico');
   }
 });
 
@@ -1349,6 +1390,18 @@ function openTicket(t){
       form.value.nivel_id = nivelValue;
     } else {
       form.value.nivel_id = '';
+    }
+
+    // Mapear origen_estrategico
+    const origenValue = t.origen_estrategico ?? t.origenEstrategico ?? null;
+    if (origenValue !== null && origenValue !== undefined && origenValue !== '' && origenValue !== 0) {
+      if (typeof origenValue === 'object') {
+        form.value.origenEstrategico = origenValue.id || '';
+      } else {
+        form.value.origenEstrategico = origenValue;
+      }
+    } else {
+      form.value.origenEstrategico = '';
     }
     
     reply.value = { tipo:'public', texto:'' }
@@ -1493,6 +1546,7 @@ function actualizarTicketEnLista(ticketId, campo, valor) {
       'estado': 'estado',
       'tipo_soporte': 'tipo_soporte',
       'tipo_ticket': 'tipo_ticket', 
+      'origen_estrategico': 'origen_estrategico',
       'macroproceso': 'macroproceso',
       'asignado': 'asignado',
       'fecha_vencimiento': 'fecha_vencimiento',

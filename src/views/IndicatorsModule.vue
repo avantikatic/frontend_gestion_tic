@@ -1,113 +1,78 @@
 <template>
   <main class="indicators-module">
-    <!-- Cabecera del módulo (título y selector) -->
-    <header class="module-header">
+    <!-- Cabecera del módulo con título y controles -->
+    <div class="header">
       <div>
         <p class="breadcrumb">Gestión TIC / Indicadores</p>
-        <!-- <h1>{{ selectedView === 'informe' ? 'Informe de Gestión' : currentIndicator.name }}</h1> -->
+        <h1>{{ selectedView === 'informe' ? 'INFORME DE GESTIÓN' : 'AUTOMATIZACIÓN DE ACTIVIDADES DE MACROPROCESOS' }}</h1>
       </div>
 
-      <div class="indicator-selector">
-        <label for="viewSelect">Indicador</label>
-        <select id="viewSelect" v-model="selectedView">
+      <div class="header-controls">
+        <select id="viewSelect" v-model="selectedView" class="year-selector">
           <option value="module">Automatización de actividades de macroprocesos</option>
           <option value="informe">Informe de Gestión</option>
         </select>
+
+        <template v-if="selectedView !== 'informe'">
+          <select
+            id="monthFilter"
+            v-model="monthFilter"
+            class="month-selector"
+          >
+            <option value="Todos">Todos los meses</option>
+            <option
+              v-for="m in allMonths"
+              :key="m"
+              :value="m"
+            >
+              {{ m }}
+            </option>
+          </select>
+
+          <button
+            type="button"
+            class="btn-crear-anio"
+            @click="resetFilters"
+          >
+            Limpiar filtros
+          </button>
+        </template>
       </div>
-    </header>
+    </div>
 
     <!-- Mostrar componente Indicators cuando se selecciona 'Informe de Gestión' -->
     <Indicators v-if="selectedView === 'informe'" />
 
     <!-- Contenido del módulo de indicadores -->
     <template v-else>
-    <!-- Filtro por mes -->
-    <section class="filters-row">
-      <div class="filters-row__group">
-        <label for="monthFilter">Mes</label>
-        <select
-          id="monthFilter"
-          v-model="monthFilter"
-        >
-          <option value="Todos">Todos</option>
-          <option
-            v-for="m in allMonths"
-            :key="m"
-            :value="m"
-          >
-            {{ m }}
-          </option>
-        </select>
-      </div>
-
-      <button
-        type="button"
-        class="btn-ghost-small"
-        @click="resetFilters"
-      >
-        Limpiar filtros
-      </button>
-    </section>
-
-    <!-- ============ INDICATOR HEADER (antes IndicatorHeader.vue) ============ -->
-    <section class="indicator-header">
-      <header class="indicator-header__title">
-        <h1>{{ indicatorInfo.name }}</h1>
-        <span class="indicator-header__badge">{{ indicatorInfo.type }}</span>
-      </header>
-
-      <div class="indicator-header__grid">
-        <div class="indicator-header__item indicator-header__item--formula">
-          <span class="label">
-            Fórmula
-            <span
-              class="info-icon"
-              :title="indicatorInfo.formulaFull || indicatorInfo.formulaShort"
-            >i</span>
-          </span>
-          <p class="value">
-            {{ indicatorInfo.formulaShort }}
-          </p>
-        </div>
-
-        <div class="indicator-header__item">
-          <span class="label">Meta (Estado adecuado)</span>
-          <p class="value-pill value-pill--good">
-            {{ indicatorInfo.meta }}%
-          </p>
-        </div>
-
-        <div class="indicator-header__item">
-          <span class="label">Estado aceptable</span>
-          <p class="value-pill value-pill--warning">
-            {{ indicatorInfo.acceptableRange }}
-          </p>
-        </div>
-
-        <div class="indicator-header__item">
-          <span class="label">Estado inaceptable</span>
-          <p class="value-pill value-pill--bad">
-            {{ indicatorInfo.unacceptableText }}
-          </p>
-        </div>
-
-        <div class="indicator-header__item">
-          <span class="label">Frecuencia de seguimiento</span>
-          <p class="value">{{ indicatorInfo.frequency }}</p>
-        </div>
-
-        <div class="indicator-header__item">
-          <span class="label">Responsable del indicador</span>
-          <p class="value">{{ indicatorInfo.owner }}</p>
-        </div>
-
-        <div class="indicator-header__item indicator-header__item--status">
-          <span class="label">Estado actual del indicador</span>
-          <p :class="['status-pill', indicatorInfo.currentStatusClass]">
-            {{ indicatorInfo.currentStatusLabel }} · {{ indicatorInfo.currentValue }}%
-          </p>
-        </div>
-      </div>
+    <section class="indicator-info">
+      <h2>1. INFORMACIÓN DEL INDICADOR</h2>
+      <table class="info-table">
+        <thead>
+          <tr>
+            <th>INDICADOR</th>
+            <th>TIPO</th>
+            <th>FÓRMULA</th>
+            <th>META ESTADO ADECUADO</th>
+            <th>ESTADO ACEPTABLE</th>
+            <th>ESTADO INACEPTABLE</th>
+            <th>FRECUENCIA DE SEGUIMIENTO</th>
+            <th>RESPONSABLE DEL INDICADOR</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="indicator-name">{{ indicatorInfo.name }}</td>
+            <td>{{ indicatorInfo.type }}</td>
+            <td class="formula">{{ indicatorInfo.formulaShort }}</td>
+            <td class="meta-adecuado">{{ indicatorInfo.meta }}%</td>
+            <td class="estado-aceptable">{{ indicatorInfo.acceptableRange }}</td>
+            <td class="estado-inaceptable">{{ indicatorInfo.unacceptableText }}</td>
+            <td>{{ indicatorInfo.frequency }}</td>
+            <td>{{ indicatorInfo.owner }}</td>
+          </tr>
+        </tbody>
+      </table>
     </section>
 
     <!-- Grid 2 columnas: izquierda ancho, derecha gráficas -->
@@ -164,7 +129,7 @@
                     {{ row.pctAutomation }}%
                   </td>
                   <td>{{ row.pctAccumulated }}%</td>
-                  <td>{{ row.meta }}%</td>
+                  <td>90%</td>
                   <td>{{ row.pctExecutionTickets }}%</td>
                   <td>{{ row.supportsEntered }}</td>
                   <td>{{ row.supportsPending }}</td>
@@ -181,7 +146,7 @@
                   <td>{{ totals.supportsOpen }}</td>
                   <td>{{ totals.avgAutomation }}%</td>
                   <td>{{ totals.avgAccumulated }}%</td>
-                  <td>{{ totals.meta }}%</td>
+                  <td>90%</td>
                   <td>{{ totals.avgExecution }}%</td>
                   <td>{{ totals.supportsEntered }}</td>
                   <td>{{ totals.supportsPending }}</td>
@@ -201,7 +166,7 @@
               </p>
             </div>
 
-            <button class="btn-primary" type="button" @click="openCreateModal">
+            <button class="btn-agregar-analisis" type="button" @click="openCreateModal">
               + Agregar análisis
             </button>
           </header>
@@ -235,7 +200,7 @@
                   <td>{{ item.followUp }}</td>
                   <td>
                     <button class="btn-ghost" type="button" @click="openEditModal(item)">
-                      Editar
+                      ✏️
                     </button>
                   </td>
                 </tr>
@@ -336,55 +301,113 @@
       <!-- Columna derecha: gráficas + tickets -->
       <div class="content-right">
         
-        <!-- ============ INDICATOR CHART (antes IndicatorChart.vue) ============ -->
+        <!-- ============ INDICATOR CHART ============ -->
         <section class="indicator-chart">
           <header class="indicator-chart__header">
-            <h2>% Automatización por mes</h2>
-            <p class="subtitle">
-              Cumplimiento mensual frente a la meta del {{ currentIndicator.meta }}%.
-            </p>
+            <h2>3. Gráfica</h2>
+            <!-- <p class="subtitle">
+              Total de tickets vs. tickets ejecutados oportunamente por mes.
+            </p> -->
           </header>
 
-          <div class="indicator-chart__body">
-            <div class="axis-y">
-              <span v-for="tick in yTicks" :key="tick">{{ tick }}%</span>
+          <!-- Gráfica simple de barras con líneas SVG -->
+          <div class="simple-bar-chart-outer">
+            <div class="simple-bar-chart-scroll">
+              <div class="simple-bar-chart compact">
+                <div class="simple-bar-chart__header">
+                  <h3></h3>
+                </div>
+
+                <div class="simple-bar-chart__body">
+                  <div class="simple-axis-y">
+                    <span>120</span>
+                    <span>100</span>
+                    <span>80</span>
+                    <span>60</span>
+                    <span>40</span>
+                    <span>20</span>
+                    <span>0</span>
+                  </div>
+
+                  <div class="simple-bars-area">
+                    <!-- SVG para las líneas (solo cuando no hay filtro de mes) -->
+                    <svg v-if="monthFilter === 'Todos'" class="simple-line-svg" preserveAspectRatio="none" viewBox="0 0 100 180">
+                      <!-- Línea azul del índice de cumplimiento -->
+                      <polyline
+                        :points="linePoints"
+                        fill="none"
+                        stroke="#2563eb"
+                        stroke-width="0.3"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                      <!-- Línea gris oscuro del % acumulado del año -->
+                      <polyline
+                        :points="linePointsAcumulado"
+                        fill="none"
+                        stroke="#374151"
+                        stroke-width="0.3"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                      <!-- Línea verde de la meta -->
+                      <polyline
+                        :points="linePointsMeta"
+                        fill="none"
+                        stroke="#004d0d"
+                        stroke-width="1"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+
+                    <!-- Barras -->
+                    <div v-for="(mes, idx) in mesesFiltrados" :key="idx" class="simple-bar-group">
+                      <div
+                        class="simple-bar simple-bar-total"
+                        :style="{ height: (mes.totalVencer / 120 * 100) + '%', width: '28px' }"
+                        :title="`${mes.mes}: ${mes.totalVencer} total tickets`"
+                      ></div>
+                      <div
+                        class="simple-bar simple-bar-oportuno"
+                        :style="{ height: (mes.atendidosOportuno / 120 * 100) + '%', width: '28px' }"
+                        :title="`${mes.mes}: ${mes.atendidosOportuno} oportunos`"
+                      ></div>
+                      <span class="simple-bar-label">{{ mes.mes.substring(0, 3) }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div class="chart-area">
-              <div
-                class="goal-line"
-                :style="{ bottom: goalPosition + '%' }"
-              ></div>
-
-              <div
-                v-for="point in chartPoints"
-                :key="point.label"
-                class="bar-group"
-              >
-                <div
-                  class="bar"
-                  :style="{ height: point.automation + '%' }"
-                  :title="`${point.label}: ${point.automation}%`"
-                ></div>
-
-                <div
-                  class="line-point"
-                  :style="{ bottom: point.accumulated + '%' }"
-                  :title="`${point.label} - Acumulado: ${point.accumulated}%`"
-                ></div>
-
-                <span class="bar-label">{{ point.shortLabel }}</span>
+            <!-- Leyenda -->
+            <div class="simple-legend-bottom">
+              <div class="legend-item">
+                <svg width="20" height="3" style="margin-right: 6px;">
+                  <line x1="0" y1="1.5" x2="20" y2="1.5" stroke="#2563eb" stroke-width="2" />
+                </svg>
+                <span>Índice cumplimiento (%)</span>
               </div>
-
-              <svg class="line-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-                <polyline
-                  :points="polylinePoints"
-                  fill="none"
-                  stroke-width="1.2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
+              <div class="legend-item">
+                <svg width="20" height="3" style="margin-right: 6px;">
+                  <line x1="0" y1="1.5" x2="20" y2="1.5" stroke="#374151" stroke-width="2" />
+                </svg>
+                <span>Acumulado año (%)</span>
+              </div>
+              <div class="legend-item">
+                <svg width="20" height="3" style="margin-right: 6px;">
+                  <line x1="0" y1="1.5" x2="20" y2="1.5" stroke="#004d0d" stroke-width="2" stroke-dasharray="4 2" />
+                </svg>
+                <span>Meta (%)</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color legend-bar" style="background-color: #1e3a8a;"></span>
+                <span>Total tickets</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color legend-bar" style="background-color: #60a5fa;"></span>
+                <span>Oportunos</span>
+              </div>
             </div>
           </div>
         </section>
@@ -437,48 +460,45 @@
           </div>
         </section>
 
-        <!-- ============ INDICATOR TICKETS LIST (antes IndicatorTicketsList.vue) ============ -->
-        <section class="tickets-card">
-          <header class="tickets-card__header">
-            <h2>Tickets del periodo</h2>
-            <p class="subtitle">
-              {{ ticketsHeaderText }}
-            </p>
-          </header>
-
-          <div v-if="monthFilter === 'Todos' || filteredTickets.length === 0" class="empty-state">
-            <p v-if="monthFilter === 'Todos'">
-              Selecciona un mes en el filtro para ver el detalle de los tickets.
-            </p>
-            <p v-else>
-              No se registran tickets asociados al indicador en {{ monthFilter }}.
-            </p>
+        <!-- ============ TICKETS DEL PERIODO ============ -->
+        <section class="tickets-periodo-card">
+          <h3>Tickets del periodo</h3>
+          <p class="tickets-periodo-desc">Detalle de tickets asociados al indicador por mes.</p>
+          
+          <div v-if="cargandoTickets" class="loading-tickets">
+            Cargando tickets...
           </div>
 
-          <template v-else>
-            <!-- Mini-status -->
-            <div class="summary-row">
-              <div class="summary-pill">
-                <span class="label">Total tickets</span>
-                <span class="value">{{ ticketsStats.total }}</span>
+          <div v-else-if="monthFilter === 'Todos'" class="tickets-periodo-empty">
+            <p>Selecciona un mes en el filtro para ver el detalle de los tickets.</p>
+          </div>
+
+          <div v-else-if="ticketsPeriodo.length === 0" class="tickets-periodo-empty">
+            <p>No hay tickets estratégicos registrados para este mes.</p>
+          </div>
+
+          <div v-else class="tickets-list-container">
+            <div class="tickets-summary-cards">
+              <div class="summary-card card-total">
+                <span class="card-label">TOTAL TICKETS</span>
+                <span class="card-value">{{ resumenTicketsPeriodo.total || 0 }}</span>
               </div>
-              <div class="summary-pill summary-pill--good">
-                <span class="label">Cerrados</span>
-                <span class="value">{{ ticketsStats.closed }}</span>
+              <div class="summary-card card-cerrados">
+                <span class="card-label">CERRADOS</span>
+                <span class="card-value">{{ resumenTicketsPeriodo.cerrados || 0 }}</span>
               </div>
-              <div class="summary-pill summary-pill--warning">
-                <span class="label">En progreso</span>
-                <span class="value">{{ ticketsStats.inProgress }}</span>
+              <div class="summary-card card-progreso">
+                <span class="card-label">EN PROGRESO</span>
+                <span class="card-value">{{ resumenTicketsPeriodo.en_progreso || 0 }}</span>
               </div>
-              <div class="summary-pill summary-pill--bad">
-                <span class="label">Abiertos</span>
-                <span class="value">{{ ticketsStats.open }}</span>
+              <div class="summary-card card-abiertos">
+                <span class="card-label">ABIERTOS</span>
+                <span class="card-value">{{ resumenTicketsPeriodo.abiertos || 0 }}</span>
               </div>
             </div>
 
-            <!-- Tabla de tickets -->
-            <div class="table-wrapper">
-              <table>
+            <div class="table-scroll-wrapper">
+              <table class="tickets-table">
                 <thead>
                   <tr>
                     <th>Ticket</th>
@@ -487,27 +507,50 @@
                     <th>Solicitante</th>
                     <th>Macroproceso</th>
                     <th>Tipo</th>
-                    <th>Fecha</th>
+                    <th>Fecha Solicitud</th>
+                    <th>Fecha Vencimiento</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="t in filteredTickets" :key="t.id">
-                    <td class="ticket-id">#{{ t.id }}</td>
+                  <tr v-for="ticket in ticketsPeriodo" :key="ticket.ticket_id">
+                    <td class="ticket-id">#{{ ticket.ticket_id }}</td>
                     <td>
-                      <span :class="['status-chip', statusChipClass(t.status)]">
-                        {{ t.status }}
+                      <span class="status-badge" :class="`status-${ticket.estado}`">
+                        {{ ticket.estado_nombre }}
                       </span>
                     </td>
-                    <td>{{ t.assignee }}</td>
-                    <td>{{ t.requester }}</td>
-                    <td>{{ t.macroprocess }}</td>
-                    <td>{{ t.category }}</td>
-                    <td>{{ t.date }}</td>
+                    <td class="ticket-responsable">{{ ticket.responsable_nombre }}</td>
+                    <td class="ticket-solicitante" :title="ticket.from_name">{{ ticket.from_name }}</td>
+                    <td class="ticket-macro">{{ ticket.macroproceso_nombre }}</td>
+                    <td class="ticket-tipo">{{ ticket.tipo_soporte_nombre }}</td>
+                    <td class="ticket-fecha">{{ ticket.receivedAt }}</td>
+                    <td class="ticket-fecha">{{ ticket.fecha_vencimiento }}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
-          </template>
+
+            <!-- Paginación -->
+            <div class="pagination-controls" v-if="totalTickets > itemsPerPage">
+              <button 
+                class="btn-pagination" 
+                :disabled="currentPage === 1" 
+                @click="cambiarPagina(currentPage - 1)"
+              >
+                Anterior
+              </button>
+              <span class="pagination-info">
+                Página {{ currentPage }} de {{ totalPages }}
+              </span>
+              <button 
+                class="btn-pagination" 
+                :disabled="currentPage === totalPages" 
+                @click="cambiarPagina(currentPage + 1)"
+              >
+                Siguiente
+              </button>
+            </div>
+          </div>
         </section>
 
       </div>
@@ -517,8 +560,11 @@
 </template>
 
 <script setup>
-import { computed, ref, reactive } from 'vue'
+import { computed, ref, reactive, onMounted, watch } from 'vue'
+import axios from 'axios'
 import Indicators from './Indicators.vue'
+
+const apiUrl = import.meta.env.VITE_API_URL
 
 const selectedView = ref('module') // 'module' o 'informe'
 const selectedIndicatorId = ref(1)
@@ -536,6 +582,24 @@ const form = reactive({
   followUp: ''
 })
 
+// Variable para almacenar los datos del backend
+const indicadoresEstrategicos = ref(null)
+const cargandoDatos = ref(false)
+
+// Variables para tickets del periodo
+const ticketsPeriodo = ref([])
+const resumenTicketsPeriodo = ref({
+  total: 0,
+  cerrados: 0,
+  en_progreso: 0,
+  abiertos: 0
+})
+const cargandoTickets = ref(false)
+const currentPage = ref(1)
+const itemsPerPage = ref(5)
+const totalTickets = ref(0)
+const totalPages = ref(0)
+
 const indicators = ref([
   {
     id: 1,
@@ -550,288 +614,9 @@ const indicators = ref([
     unacceptableText: '< 80%',
     frequency: 'Mensual',
     owner: 'Coordinador TIC',
-    results: [
-      {
-        month: 'Enero',
-        projects: 1,
-        acpm: 0,
-        reports: 0,
-        totalSupports: 1,
-        supportsOnTime: 1,
-        supportsLate: 0,
-        supportsOpen: 0,
-        pctAutomation: 100,
-        pctAccumulated: 100,
-        meta: 90,
-        pctExecutionTickets: 100,
-        supportsEntered: 1,
-        supportsPending: 0
-      },
-      {
-        month: 'Febrero',
-        projects: 7,
-        acpm: 0,
-        reports: 0,
-        totalSupports: 7,
-        supportsOnTime: 7,
-        supportsLate: 0,
-        supportsOpen: 0,
-        pctAutomation: 100,
-        pctAccumulated: 100,
-        meta: 90,
-        pctExecutionTickets: 100,
-        supportsEntered: 6,
-        supportsPending: 0
-      },
-      {
-        month: 'Marzo',
-        projects: 1,
-        acpm: 1,
-        reports: 0,
-        totalSupports: 2,
-        supportsOnTime: 2,
-        supportsLate: 0,
-        supportsOpen: 0,
-        pctAutomation: 100,
-        pctAccumulated: 100,
-        meta: 90,
-        pctExecutionTickets: 100,
-        supportsEntered: 3,
-        supportsPending: 0
-      },
-      {
-        month: 'Abril',
-        projects: 2,
-        acpm: 0,
-        reports: 0,
-        totalSupports: 2,
-        supportsOnTime: 2,
-        supportsLate: 0,
-        supportsOpen: 0,
-        pctAutomation: 100,
-        pctAccumulated: 100,
-        meta: 90,
-        pctExecutionTickets: 100,
-        supportsEntered: 2,
-        supportsPending: 0
-      },
-      {
-        month: 'Mayo',
-        projects: 2,
-        acpm: 0,
-        reports: 0,
-        totalSupports: 2,
-        supportsOnTime: 2,
-        supportsLate: 0,
-        supportsOpen: 0,
-        pctAutomation: 100,
-        pctAccumulated: 100,
-        meta: 90,
-        pctExecutionTickets: 100,
-        supportsEntered: 2,
-        supportsPending: 0
-      },
-      {
-        month: 'Junio',
-        projects: 6,
-        acpm: 0,
-        reports: 0,
-        totalSupports: 6,
-        supportsOnTime: 5,
-        supportsLate: 1,
-        supportsOpen: 0,
-        pctAutomation: 83,
-        pctAccumulated: 95,
-        meta: 90,
-        pctExecutionTickets: 100,
-        supportsEntered: 6,
-        supportsPending: 0
-      },
-      {
-        month: 'Julio',
-        projects: 3,
-        acpm: 1,
-        reports: 0,
-        totalSupports: 4,
-        supportsOnTime: 4,
-        supportsLate: 0,
-        supportsOpen: 0,
-        pctAutomation: 100,
-        pctAccumulated: 96,
-        meta: 90,
-        pctExecutionTickets: 100,
-        supportsEntered: 4,
-        supportsPending: 0
-      },
-      {
-        month: 'Agosto',
-        projects: 3,
-        acpm: 3,
-        reports: 0,
-        totalSupports: 6,
-        supportsOnTime: 5,
-        supportsLate: 1,
-        supportsOpen: 0,
-        pctAutomation: 83,
-        pctAccumulated: 93,
-        meta: 90,
-        pctExecutionTickets: 100,
-        supportsEntered: 7,
-        supportsPending: 0
-      },
-      {
-        month: 'Septiembre',
-        projects: 2,
-        acpm: 1,
-        reports: 0,
-        totalSupports: 3,
-        supportsOnTime: 3,
-        supportsLate: 0,
-        supportsOpen: 0,
-        pctAutomation: 100,
-        pctAccumulated: 94,
-        meta: 90,
-        pctExecutionTickets: 100,
-        supportsEntered: 4,
-        supportsPending: 0
-      },
-      {
-        month: 'Octubre',
-        projects: 2,
-        acpm: 3,
-        reports: 0,
-        totalSupports: 5,
-        supportsOnTime: 5,
-        supportsLate: 0,
-        supportsOpen: 0,
-        pctAutomation: 100,
-        pctAccumulated: 95,
-        meta: 90,
-        pctExecutionTickets: 100,
-        supportsEntered: 5,
-        supportsPending: 0
-      },
-      {
-        month: 'Noviembre',
-        projects: 2,
-        acpm: 2,
-        reports: 0,
-        totalSupports: 4,
-        supportsOnTime: 2,
-        supportsLate: 0,
-        supportsOpen: 2,
-        pctAutomation: 50,
-        pctAccumulated: 90,
-        meta: 90,
-        pctExecutionTickets: 50,
-        supportsEntered: 4,
-        supportsPending: 0
-      },
-      {
-        month: 'Diciembre',
-        projects: 0,
-        acpm: 0,
-        reports: 0,
-        totalSupports: 0,
-        supportsOnTime: 0,
-        supportsLate: 0,
-        supportsOpen: 0,
-        pctAutomation: 0,
-        pctAccumulated: 90,
-        meta: 90,
-        pctExecutionTickets: 0,
-        supportsEntered: 0,
-        supportsPending: 0
-      }
-    ],
-    // Tickets de ejemplo (aquí luego iría lo que traigas de tu backend)
-    tickets: [
-      {
-        id: 1023,
-        month: 'Mayo',
-        status: 'Cerrado',
-        assignee: 'Jeyson Martínez',
-        requester: 'Coordinación Ventas',
-        macroprocess: 'Macroproceso Comercial',
-        category: 'Proyecto',
-        date: '08/05/2025'
-      },
-      {
-        id: 1031,
-        month: 'Mayo',
-        status: 'Cerrado',
-        assignee: 'Víctor Nieto',
-        requester: 'Coordinación Logística',
-        macroprocess: 'Macroproceso Cadena de Suministro',
-        category: 'ACPM',
-        date: '15/05/2025'
-      },
-      {
-        id: 980,
-        month: 'Junio',
-        status: 'Cerrado',
-        assignee: 'Heyder Martínez',
-        requester: 'Coordinación Finanzas',
-        macroprocess: 'Macroproceso Financiero',
-        category: 'Proyecto',
-        date: '03/06/2025'
-      },
-      {
-        id: 981,
-        month: 'Junio',
-        status: 'En progreso',
-        assignee: 'Jeyson Martínez',
-        requester: 'Dirección General',
-        macroprocess: 'Macroproceso Estratégico',
-        category: 'Informe de gestión',
-        date: '10/06/2025'
-      },
-      {
-        id: 990,
-        month: 'Noviembre',
-        status: 'Abierto',
-        assignee: 'Víctor Nieto',
-        requester: 'Coordinación Operaciones',
-        macroprocess: 'Macroproceso Operativo',
-        category: 'Proyecto',
-        date: '05/11/2025'
-      }
-    ],
-    analysis: [
-      {
-        month: 'Enero',
-        analysis:
-          'Durante el mes de Enero el indicador se cumplió al 100% sin presentar desviaciones.',
-        actions:
-          'Mantener las acciones implementadas y continuar con el seguimiento mensual del indicador.',
-        responsible: 'Jeyson Martínez – Coordinador TIC',
-        commitmentDate: '2025-04-29',
-        followUp:
-          'Revisión mensual del resultado del indicador y verificación del cumplimiento de las actividades programadas.'
-      },
-      {
-        month: 'Febrero',
-        analysis:
-          'En Febrero el indicador se mantuvo en 100%, confirmando la efectividad de las acciones del periodo anterior.',
-        actions:
-          'Conservar los controles actuales y documentar buenas prácticas identificadas durante el mes.',
-        responsible: 'Jeyson Martínez – Coordinador TIC',
-        commitmentDate: '2025-04-29',
-        followUp:
-          'Seguimiento mensual y registro de posibles riesgos que puedan afectar la oportunidad de cierre de los support.'
-      },
-      {
-        month: 'Junio',
-        analysis:
-          'En Junio el indicador descendió a 83%, debido a una dependencia de información externa asignada a otra área.',
-        actions:
-          '1) Coordinar con mayor anticipación actividades que involucren a otras áreas. 2) Definir plazos de entrega de información y responsables claros. 3) Establecer recordatorios automáticos para actividades críticas.',
-        responsible: 'Jeyson Martínez – Coordinador TIC',
-        commitmentDate: '2025-07-30',
-        followUp:
-          'Revisar mensualmente los casos con desviación y validar si se cumplieron los plazos comprometidos posteriores al plan de acción.'
-      }
-    ]
+    results: [],
+    tickets: [],
+    analysis: []
   }
   // Aquí puedes ir agregando los otros indicadores (2, 3, 4, 5…)
 ])
@@ -906,34 +691,6 @@ const indicatorInfo = computed(() => {
   }
 })
 
-/* Guardar/actualizar análisis desde el modal */
-const handleSaveAnalysis = (payload) => {
-  const {
-    indicatorId,
-    month,
-    analysisText,
-    actions,
-    responsible,
-    commitmentDate,
-    followUp
-  } = payload
-
-  const indicator = indicators.value.find((i) => i.id === indicatorId)
-  if (!indicator) return
-
-  const idx = indicator.analysis.findIndex((a) => a.month === month)
-  const newEntry = {
-    month,
-    analysis: analysisText,
-    actions,
-    responsible,
-    commitmentDate,
-    followUp
-  }
-
-  if (idx === -1) indicator.analysis.push(newEntry)
-  else indicator.analysis[idx] = newEntry
-}
 
 /* Funciones del modal de análisis */
 const openCreateModal = () => {
@@ -960,6 +717,62 @@ const openEditModal = (item) => {
 
 const closeModal = () => {
   showModal.value = false
+}
+
+/* Guardar/actualizar análisis desde el modal */
+const handleSaveAnalysis = async (payload) => {
+  const {
+    month,
+    analysisText,
+    actions,
+    responsible,
+    commitmentDate,
+    followUp
+  } = payload
+
+  try {
+    const anioActual = new Date().getFullYear()
+    const mesNumero = obtenerNumeroMes(month)
+    
+    // Buscar si ya existe para obtener el ID (si estamos editando, ya deberíamos tenerlo, pero por si acaso)
+    let idAnalisis = null
+    if (isEditing.value) {
+       const existing = indicators.value[0].analysis.find(a => a.month === month)
+       if (existing) idAnalisis = existing.id
+    }
+
+    const dataToSend = {
+      anio: anioActual,
+      mes: mesNumero,
+      analisis: analysisText,
+      acciones: actions,
+      responsable: responsible,
+      fecha_compromiso: commitmentDate,
+      seguimiento: followUp,
+      tipo_ticket: 2, // Estratégico
+      id: idAnalisis
+    }
+
+    const response = await axios.post(
+      `${apiUrl}/indicadores/guardar_analisis_causas`,
+      dataToSend,
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    )
+
+    if (response.status === 200) {
+      // Recargar análisis
+      await cargarAnalisisCausas()
+    }
+  } catch (error) {
+    console.error('Error guardando análisis:', error)
+    if (error.response?.data?.message) {
+      alert(error.response.data.message)
+    }
+  }
 }
 
 const saveAnalysis = () => {
@@ -1060,13 +873,90 @@ const percentageClass = (value) => {
   return 'cell-bad'
 }
 
+// Altura de la gráfica de barras simple (debe coincidir con el CSS)
+const SIMPLE_BAR_CHART_HEIGHT = 180;
+
+// Mapea baseResults (todos los meses) a la estructura que espera la gráfica
+// Siempre mostramos todos los meses en la gráfica, independiente del filtro
+const mesesFiltrados = computed(() => {
+  // Si hay un filtro de mes específico, mostrar solo ese mes
+  if (monthFilter.value !== 'Todos') {
+    return baseResults.value
+      .filter(row => row.month === monthFilter.value)
+      .map(row => ({
+        mes: row.month,
+        totalVencer: row.totalSupports || 0,
+        atendidosOportuno: row.supportsOnTime || 0,
+        indiceCumplimiento: `${row.pctAutomation || 0}%`,
+        acumuladoAnio: `${row.pctAccumulated || 0}%`
+      }))
+  }
+  
+  // Si está en "Todos", mostrar todos los meses
+  return baseResults.value.map(row => ({
+    mes: row.month,
+    totalVencer: row.totalSupports || 0,
+    atendidosOportuno: row.supportsOnTime || 0,
+    indiceCumplimiento: `${row.pctAutomation || 0}%`,
+    acumuladoAnio: `${row.pctAccumulated || 0}%`
+  }))
+})
+
+// Calcula los puntos para la línea SVG del índice de cumplimiento (valor numérico, no porcentaje)
+const linePoints = computed(() => {
+  if (!mesesFiltrados.value.length) return ''
+  const totalMeses = mesesFiltrados.value.length
+  return mesesFiltrados.value.map((mes, i) => {
+    let valor = 0
+    // Usar el valor numérico del porcentaje (por ejemplo, 50)
+    if (mes.indiceCumplimiento && typeof mes.indiceCumplimiento === 'string') {
+      valor = parseFloat(mes.indiceCumplimiento.replace('%','')) || 0
+    }
+    const y = SIMPLE_BAR_CHART_HEIGHT - (valor * SIMPLE_BAR_CHART_HEIGHT / 120)
+    const x = totalMeses > 1 ? (i / (totalMeses - 1)) * 100 : 50
+    return `${x},${y}`
+  }).join(' ')
+})
+
+// Calcula los puntos para la línea gris oscuro del % acumulado del año
+const linePointsAcumulado = computed(() => {
+  if (!mesesFiltrados.value.length) return ''
+  const totalMeses = mesesFiltrados.value.length
+  return mesesFiltrados.value.map((mes, i) => {
+    let valor = 0
+    if (mes.acumuladoAnio && typeof mes.acumuladoAnio === 'string') {
+      valor = parseFloat(mes.acumuladoAnio.replace('%','')) || 0
+    }
+    const y = SIMPLE_BAR_CHART_HEIGHT - (valor * SIMPLE_BAR_CHART_HEIGHT / 120)
+    const x = totalMeses > 1 ? (i / (totalMeses - 1)) * 100 : 50
+    return `${x},${y}`
+  }).join(' ')
+})
+
+// Línea verde de meta (igual formato que las otras)
+const linePointsMeta = computed(() => {
+  const metaValue = currentIndicator.value?.meta
+  if (!mesesFiltrados.value.length || metaValue === null || metaValue === undefined) return ''
+  const totalMeses = mesesFiltrados.value.length
+  const puntos = mesesFiltrados.value.map((_, i) => {
+    const valor = parseFloat(metaValue) || 0
+    const y = SIMPLE_BAR_CHART_HEIGHT - (valor * SIMPLE_BAR_CHART_HEIGHT / 120)
+    const x = totalMeses > 1 ? (i / (totalMeses - 1)) * 100 : 50
+    return `${x},${y}`
+  })
+  return puntos.join(' ')
+})
+
 /* Para el gráfico de barras */
 const chartPoints = computed(() =>
   filteredResults.value.map((row) => ({
     label: row.month,
     shortLabel: row.month.slice(0, 3),
     automation: row.pctAutomation,
-    accumulated: row.pctAccumulated
+    accumulated: row.pctAccumulated,
+    totalSupports: row.totalSupports,
+    supportsOnTime: row.supportsOnTime,
+    supportsLate: row.supportsLate
   }))
 )
 
@@ -1075,7 +965,19 @@ const goalPosition = computed(() => {
   return Math.max(0, Math.min(100, value))
 })
 
-const yTicks = [100, 80, 60, 40, 20, 0]
+// Escala dinámica para las barras basada en el máximo de tickets
+const maxTicketsInChart = computed(() => {
+  if (!chartPoints.value.length) return 20
+  const maxTotal = Math.max(...chartPoints.value.map(p => p.totalSupports || 0))
+  // Redondear al múltiplo de 20 más cercano hacia arriba
+  return Math.ceil(maxTotal / 20) * 20 || 20
+})
+
+const yTicks = computed(() => {
+  const max = maxTicketsInChart.value
+  const step = max / 5
+  return [max, max - step, max - 2*step, max - 3*step, max - 4*step, 0].map(Math.round)
+})
 
 const polylinePoints = computed(() => {
   if (!chartPoints.value.length) return ''
@@ -1136,6 +1038,197 @@ const statusChipClass = (status) => {
 const resetFilters = () => {
   monthFilter.value = 'Todos'
 }
+
+/* Cargar indicadores estratégicos desde el backend */
+
+
+const cargarAnalisisCausas = async () => {
+  try {
+    const anioActual = new Date().getFullYear()
+    const response = await axios.post(
+      `${apiUrl}/indicadores/obtener_analisis_causas`,
+      {
+        anio: anioActual,
+        tipo_ticket: 2 // Estratégico
+      },
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    )
+
+    if (response.status === 200 && response.data.data) {
+      const analisisBackend = response.data.data
+      
+      // Mapear al formato del frontend
+      const analisisMapeados = analisisBackend.map(item => ({
+        month: obtenerNombreMes(item.mes),
+        analysis: item.analisis,
+        actions: item.acciones,
+        responsible: item.responsable,
+        commitmentDate: item.fecha_compromiso,
+        followUp: item.seguimiento,
+        id: item.id, // Guardar ID para ediciones
+        mes_numero: item.mes
+      }))
+
+      if (indicators.value[0]) {
+        indicators.value[0].analysis = analisisMapeados
+      }
+    }
+  } catch (error) {
+    console.error('Error cargando análisis de causas:', error)
+  }
+}
+
+// Función auxiliar para obtener nombre del mes (si no existe, agregarla)
+const obtenerNombreMes = (numeroMes) => {
+  const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+  return meses[numeroMes - 1] || ''
+}
+
+// Función auxiliar para obtener número de mes
+const obtenerNumeroMes = (nombreMes) => {
+  const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+  return meses.indexOf(nombreMes) + 1
+}
+
+
+
+const cargarIndicadoresEstrategicos = async () => {
+  try {
+    cargandoDatos.value = true
+    const anioActual = new Date().getFullYear()
+    
+    const response = await axios.post(
+      `${apiUrl}/indicadores/obtener_indicadores_estrategicos`,
+      { anio: anioActual },
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    )
+
+    if (response.status === 200 && response.data.data) {
+      indicadoresEstrategicos.value = response.data.data
+      
+      // Mapear los datos del backend al formato del frontend
+      const indicadoresBackend = response.data.data.indicadores || []
+      
+      const resultadosMapeados = indicadoresBackend.map(ind => {
+        // Calcular porcentaje de ejecución (tickets cerrados / total a ejecutar)
+        const totalExecuted = (ind.oportunos || 0) + (ind.no_oportunos || 0)
+        const totalSupports = ind.total_completados || 0
+        const pctExecution = totalSupports > 0 ? Math.round((totalExecuted / totalSupports) * 100) : 0
+
+        return {
+          month: ind.mes,
+          projects: ind.proyectos || 0,
+          acpm: ind.acpm || 0,
+          reports: ind.actividades_informe || 0,
+          totalSupports: totalSupports,
+          supportsOnTime: ind.oportunos || 0,
+          supportsLate: ind.no_oportunos || 0,
+          supportsOpen: ind.sin_respuesta || 0,
+          pctAutomation: ind.porcentaje || 0,
+          pctAccumulated: ind.porcentaje_acumulado || 0,
+          meta: ind.porcentaje_meta || 90,
+          pctExecutionTickets: pctExecution,
+          supportsEntered: ind.total_ingresados || 0,
+          supportsPending: ind.tickets_abiertos || 0
+        }
+      })
+
+      // Actualizar los resultados del indicador
+      if (indicators.value[0]) {
+        indicators.value[0].results = resultadosMapeados
+      }
+      
+      // Cargar análisis de causas
+      await cargarAnalisisCausas()
+    }
+  } catch (error) {
+    console.error('Error cargando indicadores estratégicos:', error)
+  } finally {
+    cargandoDatos.value = false
+  }
+}
+
+// Función para cargar tickets del periodo seleccionado
+const cargarTicketsPeriodo = async () => {
+  if (monthFilter.value === 'Todos') {
+    ticketsPeriodo.value = []
+    return
+  }
+
+  try {
+    cargandoTickets.value = true
+    const anioActual = new Date().getFullYear()
+    const mesNumero = obtenerNumeroMes(monthFilter.value)
+    
+    const response = await axios.post(
+      `${apiUrl}/indicadores/obtener_tickets_periodo`,
+      {
+        anio: anioActual,
+        mes: mesNumero,
+        tipo_ticket: 2, // Estratégico
+        page: currentPage.value,
+        limit: itemsPerPage.value
+      },
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    )
+
+    if (response.status === 200 && response.data.data) {
+      ticketsPeriodo.value = response.data.data.tickets || []
+      resumenTicketsPeriodo.value = response.data.data.resumen || {
+        total: 0,
+        cerrados: 0,
+        en_progreso: 0,
+        abiertos: 0
+      }
+      // Actualizar paginación
+      if (response.data.data.pagination) {
+        totalTickets.value = response.data.data.pagination.total_records || 0
+        totalPages.value = response.data.data.pagination.total_pages || 0
+      }
+    }
+  } catch (error) {
+    console.error('Error cargando tickets del periodo:', error)
+    ticketsPeriodo.value = []
+  } finally {
+    cargandoTickets.value = false
+  }
+}
+
+const cambiarPagina = (nuevaPagina) => {
+  if (nuevaPagina >= 1 && nuevaPagina <= totalPages.value) {
+    currentPage.value = nuevaPagina
+    cargarTicketsPeriodo()
+  }
+}
+
+// Watcher para cargar tickets cuando cambia el mes seleccionado
+watch(monthFilter, (nuevoMes) => {
+  if (nuevoMes && nuevoMes !== 'Todos') {
+    currentPage.value = 1 // Resetear página al cambiar mes
+    cargarTicketsPeriodo()
+  } else {
+    ticketsPeriodo.value = []
+  }
+})
+
+// Cargar datos al montar el componente
+onMounted(() => {
+  cargarIndicadoresEstrategicos()
+})
 </script>
 
 <style scoped>
@@ -1147,12 +1240,17 @@ const resetFilters = () => {
   box-sizing: border-box;
 }
 
-.module-header {
+/* Header con controles */
+.header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
-  gap: 16px;
-  margin-bottom: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 20px 22px;
+  background: var(--gtic-surface);
+  border-radius: 10px;
+  box-shadow: 0 8px 18px rgba(19, 41, 64, 0.08);
+  border: 1px solid #e2e6ea;
 }
 
 .breadcrumb {
@@ -1161,38 +1259,61 @@ const resetFilters = () => {
   color: var(--gtic-text-muted);
 }
 
-.module-header h1 {
-  margin: 0;
-  font-size: 1.2rem;
+.header h1 {
+  font-size: 1.1rem;
   font-weight: 600;
   color: var(--gtic-text-main);
+  margin: 0;
 }
 
-.selectors-group {
+.header-controls {
   display: flex;
-  gap: 16px;
-  align-items: flex-end;
+  gap: 12px;
+  align-items: center;
 }
 
-.indicator-selector {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
+.year-selector,
+.month-selector {
+  min-width: 120px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid gray;
+  background: var(--gtic-surface);
+  font-size: 0.85rem;
+  color: var(--gtic-text-main);
+  outline: none;
+  cursor: pointer;
 }
 
-.indicator-selector label {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--gtic-text-muted);
+.year-selector:focus,
+.month-selector:focus {
+  border-color: var(--gtic-secondary);
+  box-shadow: 0 0 0 1px rgba(122, 199, 137, 0.35);
+}
+
+.btn-crear-anio {
+  padding: 6px 14px;
+  background: #2e4360;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-crear-anio:hover {
+  background: #22396a;
+  box-shadow: 0 2px 8px rgba(34, 57, 106, 0.25);
 }
 
 .indicator-selector select {
   min-width: 260px;
   padding: 6px 10px;
   border-radius: 8px;
-  border: 1px solid var(--gtic-accent);
+  border: 1px solid gray;
   background: var(--gtic-surface);
   font-size: 0.85rem;
   color: var(--gtic-text-main);
@@ -1202,52 +1323,6 @@ const resetFilters = () => {
 .indicator-selector select:focus {
   border-color: var(--gtic-secondary);
   box-shadow: 0 0 0 1px rgba(122, 199, 137, 0.35);
-}
-
-/* Filtros */
-.filters-row {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.filters-row__group {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.filters-row__group label {
-  font-size: 0.74rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--gtic-text-muted);
-}
-
-.filters-row__group select {
-  min-width: 150px;
-  padding: 6px 8px;
-  border-radius: 8px;
-  border: 1px solid var(--gtic-accent);
-  background: var(--gtic-surface);
-  font-size: 0.82rem;
-  color: var(--gtic-text-main);
-}
-
-.btn-ghost-small {
-  border: 1px solid var(--gtic-accent);
-  background: #ffffff;
-  color: var(--gtic-text-main);
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 0.78rem;
-  cursor: pointer;
-}
-
-.btn-ghost-small:hover {
-  background: #f3f4f6;
 }
 
 /* Grid principal */
@@ -1266,9 +1341,83 @@ const resetFilters = () => {
   gap: 0;
 }
 
-/* ============ ESTILOS DE INDICATOR HEADER ============ */
-.indicator-header {
+/* ============ ESTILOS DE TABLA DE INFORMACIÓN ============ */
+.indicator-info {
   background: var(--gtic-surface);
+  border-radius: 10px;
+  padding: 20px 22px;
+  margin-bottom: 16px;
+  box-shadow: 0 8px 18px rgba(19, 41, 64, 0.08);
+  border: 1px solid #e2e6ea;
+}
+
+.indicator-info h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--gtic-text-main);
+  margin: 0 0 14px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e2e6ea;
+}
+
+.info-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.info-table th {
+  background-color: #22396a;
+  color: white;
+  padding: 10px 8px;
+  text-align: center;
+  font-weight: 600;
+  border: 1px solid #132940;
+  font-size: 0.75rem;
+  line-height: 1.3;
+}
+
+.info-table td {
+  padding: 10px 8px;
+  border: 1px solid #e2e6ea;
+  text-align: center;
+  color: var(--gtic-text-main);
+}
+
+.indicator-name {
+  text-align: left;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.formula {
+  font-size: 0.78rem;
+  text-align: left;
+  font-style: italic;
+  color: var(--gtic-text-main);
+}
+
+.meta-adecuado {
+  background: #e6f7f2;
+  color: #14866d;
+  font-weight: 600;
+}
+
+.estado-aceptable {
+  background: #fff4e3;
+  color: #d68c23;
+  font-weight: 600;
+}
+
+.estado-inaceptable {
+  background: #fde2e2;
+  color: #d64545;
+  font-weight: 600;
+}
+
+/* ============ ESTILOS DE INDICATOR HEADER (ANTIGUOS - PUEDEN ELIMINARSE SI NO SE USAN) ============ */
+.indicator-header {
+  background: white;
   border-radius: 10px;
   padding: 20px 22px;
   box-shadow: 0 8px 18px rgba(19, 41, 64, 0.08);
@@ -1291,9 +1440,9 @@ const resetFilters = () => {
 }
 
 .indicator-header__badge {
-  padding: 4px 10px;
+  padding: 6px 14px;
   border-radius: 999px;
-  background: var(--gtic-primary);
+  background: #2c425c;
   color: #ffffff;
   font-size: 0.7rem;
   font-weight: 500;
@@ -1405,7 +1554,7 @@ const resetFilters = () => {
 
 /* ============ ESTILOS DE INDICATOR RESULTS TABLE ============ */
 .indicator-table {
-  background: var(--gtic-surface);
+  background: white;
   border-radius: 10px;
   padding: 18px 20px 20px;
   margin-top: 16px;
@@ -1445,8 +1594,8 @@ table {
 }
 
 thead th {
-  background: var(--gtic-primary);
-  color: black;
+  background: #22396a;
+  color: white;
   text-align: left;
   padding: 6px 8px;
   position: sticky;
@@ -1534,19 +1683,24 @@ tbody tr:nth-child(even) {
   white-space: nowrap;
 }
 
-/* Botones */
-.btn-primary {
+/* Botón + Agregar análisis para tabla de análisis */
+.btn-agregar-analisis {
+  background: #2e4360;
+  color: #fff;
   border: none;
-  background: var(--gtic-primary);
-  color: #ffffff;
-  padding: 6px 14px;
-  border-radius: 999px;
-  font-size: 0.8rem;
+  border-radius: 22px;
+  padding: 7px 22px 7px 18px;
+  font-size: 1rem;
+  font-weight: 400;
   cursor: pointer;
+  transition: background 0.18s;
+  box-shadow: none;
+  outline: none;
+  display: inline-block;
+  margin-left: 10px;
 }
-
-.btn-primary:hover {
-  background: #1c2d41;
+.btn-agregar-analisis:hover {
+  background: #22396a;
 }
 
 .btn-ghost {
@@ -1566,60 +1720,120 @@ tbody tr:nth-child(even) {
 /* Modal */
 .modal-backdrop {
   position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.45);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 40;
+  z-index: 1000;
 }
 
 .modal {
-  width: 100%;
-  max-width: 720px;
-  background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.35);
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  width: 90%;
+  max-width: 750px; /* Matching modal-content-wide */
+  max-height: 80vh;
+  overflow: auto;
   display: flex;
   flex-direction: column;
-  max-height: 90vh;
 }
 
 .modal__header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
-  border-bottom: 1px solid #e5e7eb;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #e0e0e0;
 }
 
 .modal__header h3 {
   margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--gtic-text-main);
+  font-size: 1.25rem;
+  color: #333;
 }
 
 .modal__close {
-  border: none;
   background: none;
-  font-size: 1.3rem;
+  border: none;
+  font-size: 1.5rem;
   cursor: pointer;
-  color: var(--gtic-text-muted);
+  color: #666;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.modal__close:hover {
+  background: #f0f0f0;
 }
 
 .modal__body {
-  padding: 16px 18px;
+  padding: 20px;
   overflow-y: auto;
 }
 
 .modal__footer {
-  padding: 12px 18px 14px;
-  border-top: 1px solid #e5e7eb;
   display: flex;
-  justify-content: flex-end;
-  gap: 10px;
+  justify-content: center;
+  gap: 0px;
+  margin-top: 8px;
+  margin-bottom: 0;
+  width: 100%;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #22396a;
+  letter-spacing: 0.5px;
+  user-select: none;
+  cursor: pointer;
+  font-size: 14px;
+  min-width: 18px;
+  text-align: center;
+  white-space: nowrap;
+  flex: 1 1 0;
+  background: #f5f5f5;
+  color: #333;
+  padding: 0; /* Override previous padding */
 }
+
+.modal__footer button {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.modal__footer button.btn-ghost {
+  background: #f5f5f5;
+  color: #333;
+  border-radius: 0 0 0 8px;
+}
+
+.modal__footer button.btn-ghost:hover {
+  background: #e0e0e0;
+}
+
+.modal__footer button.btn-primary {
+  background: #4CAF50;
+  color: white;
+  border-radius: 0 0 8px 0;
+}
+
+.modal__footer button.btn-primary:hover {
+  background: #45a049;
+}
+
 
 /* Formulario */
 .form-group {
@@ -1699,57 +1913,74 @@ tbody tr:nth-child(even) {
   justify-content: space-between;
   font-size: 0.68rem;
   color: var(--gtic-text-muted);
-  padding-right: 4px;
+  padding-right: 8px;
+  height: 200px;
 }
 
 .chart-area {
   position: relative;
   display: flex;
   align-items: flex-end;
-  gap: 6px;
+  gap: 12px;
   height: 200px;
-  padding: 4px 4px 18px;
+  padding: 8px;
   border-radius: 8px;
-  background: linear-gradient(
+  background: repeating-linear-gradient(
     to top,
-    #f8fafc 0%,
-    #f8fafc 50%,
-    #ffffff 100%
+    #f8fafc 0px,
+    #f8fafc 39px,
+    #e0e7ef 40px,
+    #f8fafc 41px
   );
   border: 1px solid #e2e6ea;
-  overflow: hidden;
-}
-
-.goal-line {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 0;
-  border-top: 1.5px dashed #f97316;
+  overflow: visible;
 }
 
 .bar-group {
   flex: 1;
   position: relative;
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  flex-direction: row;
+  gap: 4px;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 40px;
 }
 
 .bar {
-  width: 60%;
-  border-radius: 6px 6px 2px 2px;
-  background: linear-gradient(
-    180deg,
-    var(--gtic-secondary),
-    var(--gtic-primary)
-  );
+  width: 36px;
+  min-height: 3px;
+  border-radius: 4px 4px 2px 2px;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.bar:hover {
+.bar-total {
+  background: linear-gradient(180deg, #94a3b8, #64748b);
+}
+
+.bar-total:hover {
   transform: translateY(-3px);
-  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 4px 10px rgba(100, 116, 139, 0.35);
+}
+
+.bar-oportuno {
+  background: linear-gradient(180deg, #60a5fa, #3b82f6);
+}
+
+.bar-oportuno:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 10px rgba(59, 130, 246, 0.35);
+}
+
+.bar-label {
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.68rem;
+  color: #4b5563;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .line-point {
@@ -2048,4 +2279,423 @@ tbody tr:nth-child(even) {
     grid-template-columns: 1fr;
   }
 }
+
+/* ============ ESTILOS PARA TICKETS DEL PERIODO ============ */
+.tickets-periodo-card {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(19,41,64,0.07);
+  border: 1px solid #e2e6ea;
+  padding: 22px 18px 18px 18px;
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tickets-periodo-card h3 {
+  font-size: 1.08rem;
+  font-weight: 700;
+  color: #22396a;
+  margin: 0 0 4px 0;
+}
+
+.tickets-periodo-desc {
+  font-size: 0.92rem;
+  color: #6b7280;
+  margin-bottom: 16px;
+}
+
+.tickets-periodo-empty {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 32px;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.95rem;
+}
+
+.loading-tickets {
+  text-align: center;
+  padding: 32px;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.tickets-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+/* Summary Cards */
+.tickets-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  width: 100%;
+}
+
+.summary-card {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 20px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  gap: 8px;
+}
+
+.card-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1;
+}
+
+.card-value {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Card Variants */
+.card-total {
+  background: #fff;
+  border-color: #e2e8f0;
+}
+.card-total .card-label { color: #64748b; }
+.card-total .card-value { color: #1e293b; }
+
+.card-cerrados {
+  background: #d1fae5;
+  border-color: #a7f3d0;
+}
+.card-cerrados .card-label { color: #047857; }
+.card-cerrados .card-value { color: #059669; }
+
+.card-progreso {
+  background: #fef3c7;
+  border-color: #fde68a;
+}
+.card-progreso .card-label { color: #b45309; }
+.card-progreso .card-value { color: #d97706; }
+
+.card-abiertos {
+  background: #fee2e2;
+  border-color: #fecaca;
+}
+.card-abiertos .card-label { color: #b91c1c; }
+.card-abiertos .card-value { color: #dc2626; }
+
+/* Table Styles */
+.table-scroll-wrapper {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  width: 100%;
+}
+
+.tickets-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  min-width: 100%;
+}
+
+.tickets-table th {
+  text-align: left;
+  padding: 10px 12px;
+  background: #22396a;
+  color: #fff;
+  font-weight: 600;
+  border-bottom: none;
+  white-space: nowrap;
+  font-size: 0.8rem;
+}
+
+.tickets-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  color: #334155;
+  background: #fff;
+  vertical-align: middle;
+  font-size: 0.82rem;
+}
+
+.tickets-table tbody tr:hover td {
+  background: #f8fafc;
+}
+
+.tickets-table tr:last-child td {
+  border-bottom: none;
+}
+
+.ticket-id {
+  font-weight: 600;
+  color: #22396a;
+  white-space: nowrap;
+}
+
+.ticket-responsable,
+.ticket-solicitante {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.ticket-macro,
+.ticket-tipo {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+}
+
+.ticket-fecha {
+  white-space: nowrap;
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.status-1 {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.status-2 {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-3, .status-4 {
+  background: #dcfce7;
+  color: #166534;
+}
+
+/* Pagination Controls */
+.pagination-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+  padding: 0;
+}
+
+.btn-pagination {
+  padding: 8px 16px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 6px;
+  color: #475569;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 90px;
+}
+
+.btn-pagination:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #22396a;
+  color: #22396a;
+}
+
+.btn-pagination:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: #f8fafc;
+  color: #94a3b8;
+}
+
+.pagination-info {
+  font-size: 0.85rem;
+  color: #64748b;
+  font-weight: 500;
+  min-width: 120px;
+  text-align: center;
+}
+
+/* ========================================
+   ESTILOS PARA GRÁFICA SIMPLE DE BARRAS
+   ======================================== */
+
+.simple-bar-chart-outer {
+  width: 100%;
+  padding: 0;
+  overflow: hidden;
+}
+
+.simple-bar-chart-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+  max-width: 100%;
+}
+
+.simple-bar-chart {
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px 18px 50px;
+  min-width: 500px;
+  width: 100%;
+}
+
+.simple-bar-chart.compact {
+  padding: 8px 12px 40px;
+}
+
+.simple-bar-chart__header h3 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.simple-bar-chart__body {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+/* Eje Y */
+.simple-axis-y {
+  display: grid;
+  grid-template-rows: repeat(7, 1fr);
+  gap: 8px;
+  height: 180px;
+  font-size: 0.7rem;
+  color: #64748b;
+  text-align: right;
+  padding-right: 8px;
+  padding-top: 2px;
+}
+
+.simple-axis-y span {
+  display: block;
+  line-height: 1;
+}
+
+/* Área de barras */
+.simple-bars-area {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  justify-content: flex-start;
+  height: 180px;
+  padding: 0 8px;
+  overflow-x: auto;
+  overflow-y: visible;
+  background: repeating-linear-gradient(
+    to top,
+    #e2e8f0 0px,
+    #e2e8f0 1px,
+    transparent 1px,
+    transparent calc((180px / 6))
+  );
+}
+
+/* SVG para las líneas */
+.simple-line-svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Grupo de barras */
+.simple-bar-group {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: center;
+  position: relative;
+  min-width: 32px;
+  height: 100%;
+}
+
+/* Barra individual */
+.simple-bar {
+  width: 40px;
+  min-height: 2px;
+  border-radius: 4px 4px 2px 2px;
+  margin: 0 4px 0 4px;
+  transition: height 0.2s;
+  border: none;
+}
+
+.simple-bar:hover {
+  opacity: 0.8;
+}
+
+.simple-bar-total {
+  background: #1e3a8a;
+}
+
+.simple-bar-oportuno {
+  background: #60a5fa;
+  margin-top: 2px;
+}
+
+/* Etiquetas de barras */
+.simple-bar-label {
+  font-size: 0.7rem;
+  color: #64748b;
+  margin-top: 6px;
+  white-space: nowrap;
+  text-align: center;
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* Leyenda inferior */
+.simple-legend-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: center;
+  margin-top: 60px;
+  font-size: 0.75rem;
+  color: #475569;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-color {
+  width: 20px;
+  height: 12px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.legend-bar {
+  height: 14px;
+  border-radius: 3px;
+}
 </style>
+
+

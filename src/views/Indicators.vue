@@ -591,7 +591,7 @@ const abrirModalObservaciones = async (mes) => {
 
   try {
     const response = await axios.post(
-      `${apiUrl}/dashboard/obtener_observacion_mes`,
+      `${apiUrl}/indicadores/obtener_observacion_mes`,
       {
         anio: anioActual.value,
         mes: mes.mes_numero
@@ -627,7 +627,7 @@ const guardarObservacion = async () => {
   try {
     guardando.value = true
     const response = await axios.post(
-      `${apiUrl}/dashboard/guardar_observacion_mes`,
+      `${apiUrl}/indicadores/guardar_observacion_mes`,
       {
         anio: anioActual.value,
         mes: mesSeleccionado.value.mes_numero,
@@ -641,7 +641,6 @@ const guardarObservacion = async () => {
     )
 
     if (response.status === 200) {
-      console.log('Observación guardada exitosamente')
       cerrarModal()
     }
   } catch (error) {
@@ -807,7 +806,7 @@ async function cargarIndicadores() {
   try {
     cargando.value = true
     const response = await axios.post(
-      `${apiUrl}/dashboard/obtener_indicadores_gestion`,
+      `${apiUrl}/indicadores/obtener_indicadores_gestion`,
       {
         anio: anioActual.value
       },
@@ -856,7 +855,7 @@ const cargarTicketsPeriodo = async () => {
   try {
     cargandoTickets.value = true
     const response = await axios.post(
-      `${apiUrl}/dashboard/obtener_tickets_periodo`,
+      `${apiUrl}/indicadores/obtener_tickets_periodo`,
       {
         anio: anioActual.value,
         mes: mesSeleccionadoFiltro.value,
@@ -905,7 +904,7 @@ const cambiarPagina = (nuevaPagina) => {
 const cargarAnalisisCausas = async () => {
   try {
     const response = await axios.post(
-      `${apiUrl}/dashboard/obtener_analisis_causas`,
+      `${apiUrl}/indicadores/obtener_analisis_causas`,
       {
         anio: anioActual.value
       },
@@ -985,7 +984,7 @@ const guardarAnalisis = async () => {
     }
 
     const response = await axios.post(
-      `${apiUrl}/dashboard/guardar_analisis_causas`,
+      `${apiUrl}/indicadores/guardar_analisis_causas`,
       payload,
       {
         headers: {
@@ -995,7 +994,6 @@ const guardarAnalisis = async () => {
     )
 
     if (response.status === 200) {
-      console.log('Análisis guardado exitosamente')
       await cargarAnalisisCausas()
       cerrarModalAnalisis()
     }
@@ -1106,7 +1104,7 @@ function getEstadoTexto(valor) {
 const cargarAniosDisponibles = async () => {
   try {
     const response = await axios.post(
-      `${apiUrl}/dashboard/obtener_anios`,
+      `${apiUrl}/indicadores/obtener_anios`,
       {},
       {
         headers: {
@@ -1195,13 +1193,15 @@ const guardarNuevoAnio = async () => {
   }
 }
 
-onMounted(() => {
-  cargarAniosDisponibles()
-  cargarIndicadores()
-  setTimeout(() => {
-    // Mostrar los datos de los meses en consola para depuración
-    console.log('Meses para gráfica:', JSON.parse(JSON.stringify(meses.value)))
-  }, 1500)
+onMounted(async () => {
+  await cargarAniosDisponibles()
+  if (anioActual.value) {
+    cargarIndicadores()
+  }
+  // setTimeout(() => {
+  //   // Mostrar los datos de los meses en consola para depuración
+  //   console.log('Meses para gráfica:', JSON.parse(JSON.stringify(meses.value)))
+  // }, 1500)
 })
 </script>
 
@@ -1242,7 +1242,7 @@ onMounted(() => {
   min-width: 120px;
   padding: 6px 10px;
   border-radius: 8px;
-  border: 1px solid var(--gtic-accent);
+  border: 1px solid gray;
   background: var(--gtic-surface);
   font-size: 0.85rem;
   color: var(--gtic-text-main);
@@ -1257,7 +1257,7 @@ onMounted(() => {
 
 .btn-crear-anio {
   padding: 6px 14px;
-  background: #2e4360;
+  background: #028b1e;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -1269,14 +1269,14 @@ onMounted(() => {
 }
 
 .btn-crear-anio:hover {
-  background: #22396a;
+  background: #00ae17;
   box-shadow: 0 2px 8px rgba(34, 57, 106, 0.25);
 }
 
 
 .refresh-btn {
   padding: 4px 18px;
-  background: #22396a;
+  background: #028b1e;
   color: #fff;
   border: none;
   border-radius: 18px;
@@ -1290,7 +1290,7 @@ onMounted(() => {
 }
 
 .refresh-btn:hover:not(:disabled) {
-  background: #1a2947;
+  background: #00ae17;
 }
 
 .refresh-btn:disabled {
@@ -1332,7 +1332,7 @@ h2 {
 
 .info-table th {
   /* background: var(--gtic-primary); */
-  background-color: #22396a;
+  background-color: #028b1e;
   color: white;
   padding: 10px 8px;
   text-align: center;
@@ -1395,12 +1395,12 @@ h2 {
 }
 
 .results-table thead th {
-  background: #22396a;
+  background: #028b1e;
   color: #fff;
   padding: 5px 8px;
   text-align: center;
   font-weight: 600;
-  border: 1px solid #22396a;
+  border: 1px solid #028b1e;
   font-size: 0.78rem;
   line-height: 1.3;
   white-space: nowrap;
@@ -1422,8 +1422,8 @@ h2 {
   padding: 1px 6px;
   border: 1px solid #dde3ef;
   text-align: center;
-  color: #22396a;
-  background: #fff;
+  color: #00540f;
+  background: #e7ffe8;
   transition: background 0.2s;
 }
 
@@ -1432,16 +1432,16 @@ h2 {
 }
 
 .results-table tbody tr:hover td {
-  background: #e7f3ff;
+  background: #75af80;
 }
 
 .mes-name {
-  background: #e7f3ff !important;
-  color: #22396a !important;
+  background: #e7ffe8 !important;
+  color: #016124 !important;
   font-weight: 700 !important;
   text-align: left;
   padding-left: 14px;
-  border-left: 4px solid #5b9bd5;
+  border-left: 4px solid #028b1e;
 }
 
 .total-row {
@@ -1451,8 +1451,8 @@ h2 {
 
 .total-row td {
   font-weight: 700;
-  background: #dbeaf7 !important;
-  color: #22396a !important;
+  background: #9de8b6 !important;
+  color: #00540f !important;
 }
 
 .results-table tbody td strong {
@@ -2010,7 +2010,7 @@ h2 {
 .tickets-periodo-card h3 {
   font-size: 1.08rem;
   font-weight: 700;
-  color: #22396a;
+  color: #117d1e;
   margin: 0 0 4px 0;
 }
 
@@ -2034,7 +2034,7 @@ h2 {
   min-width: 140px;
   padding: 6px 10px;
   border-radius: 8px;
-  border: 1px solid var(--gtic-accent);
+  border: 1px solid gray;
   background: var(--gtic-surface);
   font-size: 0.85rem;
   color: var(--gtic-text-main);
@@ -2155,7 +2155,7 @@ h2 {
 }
 
 .analisis-header-row {
-  background: #22396a;
+  background: #028b1e;
   color: #fff;
 }
 
@@ -2164,7 +2164,7 @@ h2 {
   vertical-align: middle;
   font-size: 0.78rem;
   padding: 12px 8px;
-  border: 1px solid #4178b8;
+  border: 1px solid #0cc20f;
   font-weight: 600;
 }
 
@@ -2204,7 +2204,7 @@ h2 {
   text-align: center;
   padding: 16px;
   color: #6b7280;
-  background: #f4f8fc;
+  background: #f4fcf5;
 }
 
 /* Nombres de los meses debajo de la gráfica de barras */
@@ -2243,7 +2243,7 @@ h2 {
 
 /* Botón + Agregar análisis para tabla de análisis */
 .btn-agregar-analisis {
-  background: #2e4360;
+  background: #028b1e;
   color: #fff;
   border: none;
   border-radius: 22px;
@@ -2258,7 +2258,7 @@ h2 {
   margin-left: 10px;
 }
 .btn-agregar-analisis:hover {
-  background: #22396a;
+  background: #00ae17;
 }
 
 /* Icono de información en cabeceras de tabla */
@@ -2396,7 +2396,7 @@ h2 {
 
 /* Botón editar en tabla de análisis */
 .btn-editar-analisis {
-  background: #5b9bd5;
+  background: #028b1e;
   color: white;
   border: none;
   border-radius: 4px;
@@ -2426,8 +2426,8 @@ h2 {
 .analisis-td-mes {
   text-align: center;
   font-weight: 600;
-  background: #e7f3ff !important;
-  color: #22396a;
+  background: #e7ffe8 !important;
+  color: #016124;
 }
 
 .analisis-td-fecha {
@@ -2532,8 +2532,8 @@ h2 {
 .tickets-table th {
   text-align: left;
   padding: 12px 16px;
-  background: #fff;
-  color: #1e293b;
+  background: #016124;
+  color: white;
   font-weight: 700;
   border-bottom: 1px solid #e2e8f0;
   white-space: nowrap;
