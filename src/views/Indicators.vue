@@ -859,6 +859,7 @@ const cargarTicketsPeriodo = async () => {
       {
         anio: anioActual.value,
         mes: mesSeleccionadoFiltro.value,
+        tipo_ticket: 1, // Gestión
         page: currentPage.value,
         limit: itemsPerPage.value
       },
