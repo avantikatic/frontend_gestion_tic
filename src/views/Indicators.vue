@@ -1161,7 +1161,7 @@ const guardarNuevoAnio = async () => {
 
   try {
     const response = await axios.post(
-      `${apiUrl}/dashboard/crear_anio`,
+      `${apiUrl}/indicadores/crear_anio`,
       {
         anio: anioNum,
         descripcion: nuevoAnio.value.descripcion
