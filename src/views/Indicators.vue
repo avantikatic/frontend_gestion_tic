@@ -1258,7 +1258,7 @@ onMounted(async () => {
 
 .btn-crear-anio {
   padding: 6px 14px;
-  background: #028b1e;
+  background: #266148;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -1270,14 +1270,14 @@ onMounted(async () => {
 }
 
 .btn-crear-anio:hover {
-  background: #00ae17;
+  background: #357a5c;
   box-shadow: 0 2px 8px rgba(34, 57, 106, 0.25);
 }
 
 
 .refresh-btn {
   padding: 4px 18px;
-  background: #028b1e;
+  background: #266148;
   color: #fff;
   border: none;
   border-radius: 18px;
@@ -1291,7 +1291,7 @@ onMounted(async () => {
 }
 
 .refresh-btn:hover:not(:disabled) {
-  background: #00ae17;
+  background: #357a5c;
 }
 
 .refresh-btn:disabled {
@@ -1333,7 +1333,7 @@ h2 {
 
 .info-table th {
   /* background: var(--gtic-primary); */
-  background-color: #028b1e;
+  background-color: #266148;
   color: white;
   padding: 10px 8px;
   text-align: center;
@@ -1396,12 +1396,12 @@ h2 {
 }
 
 .results-table thead th {
-  background: #028b1e;
+  background: #266148;
   color: #fff;
   padding: 5px 8px;
   text-align: center;
   font-weight: 600;
-  border: 1px solid #028b1e;
+  border: 1px solid #266148;
   font-size: 0.78rem;
   line-height: 1.3;
   white-space: nowrap;
@@ -1423,8 +1423,8 @@ h2 {
   padding: 1px 6px;
   border: 1px solid #dde3ef;
   text-align: center;
-  color: #00540f;
-  background: #e7ffe8;
+  color: #266148;
+  background: #f7f9fb;
   transition: background 0.2s;
 }
 
@@ -1432,17 +1432,13 @@ h2 {
   background: #f4f8fc;
 }
 
-.results-table tbody tr:hover td {
-  background: #75af80;
-}
-
 .mes-name {
-  background: #e7ffe8 !important;
-  color: #016124 !important;
+  background: #f7f9fb !important;
+  color: #266148 !important;
   font-weight: 700 !important;
   text-align: left;
   padding-left: 14px;
-  border-left: 4px solid #028b1e;
+  border-left: 4px solid #266148;
 }
 
 .total-row {
@@ -1452,8 +1448,8 @@ h2 {
 
 .total-row td {
   font-weight: 700;
-  background: #9de8b6 !important;
-  color: #00540f !important;
+  background: #f7f9fb !important;
+  color: #266148 !important;
 }
 
 .results-table tbody td strong {
@@ -2011,7 +2007,7 @@ h2 {
 .tickets-periodo-card h3 {
   font-size: 1.08rem;
   font-weight: 700;
-  color: #117d1e;
+  color: #266148;
   margin: 0 0 4px 0;
 }
 
@@ -2156,7 +2152,7 @@ h2 {
 }
 
 .analisis-header-row {
-  background: #028b1e;
+  background: #266148;
   color: #fff;
 }
 
@@ -2165,7 +2161,7 @@ h2 {
   vertical-align: middle;
   font-size: 0.78rem;
   padding: 12px 8px;
-  border: 1px solid #0cc20f;
+  border: 1px solid #266148;
   font-weight: 600;
 }
 
@@ -2244,7 +2240,7 @@ h2 {
 
 /* Botón + Agregar análisis para tabla de análisis */
 .btn-agregar-analisis {
-  background: #028b1e;
+  background: #266148;
   color: #fff;
   border: none;
   border-radius: 22px;
@@ -2259,7 +2255,7 @@ h2 {
   margin-left: 10px;
 }
 .btn-agregar-analisis:hover {
-  background: #00ae17;
+  background: #357a5c;
 }
 
 /* Icono de información en cabeceras de tabla */
@@ -2397,7 +2393,7 @@ h2 {
 
 /* Botón editar en tabla de análisis */
 .btn-editar-analisis {
-  background: #028b1e;
+  background: #266148;
   color: white;
   border: none;
   border-radius: 4px;
@@ -2427,8 +2423,8 @@ h2 {
 .analisis-td-mes {
   text-align: center;
   font-weight: 600;
-  background: #e7ffe8 !important;
-  color: #016124;
+  background: #f7f9fb !important;
+  color: #266148;
 }
 
 .analisis-td-fecha {
@@ -2533,7 +2529,7 @@ h2 {
 .tickets-table th {
   text-align: left;
   padding: 12px 16px;
-  background: #016124;
+  background: #266148;
   color: white;
   font-weight: 700;
   border-bottom: 1px solid #e2e8f0;
