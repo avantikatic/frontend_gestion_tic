@@ -1,19 +1,43 @@
 <template>
   <main class="indicators-module">
-    <!-- Cabecera del módulo con título y controles -->
+    <!-- Cabecera del módulo con breadcrumb y título -->
+    <div class="header-breadcrumb">
+      <p class="breadcrumb">Gestión TIC / Indicadores</p>
+    </div>
+    
     <div class="header">
-      <div>
-        <p class="breadcrumb">Gestión TIC / Indicadores</p>
-        <h1>{{ selectedView === 'informe' ? 'INFORME DE GESTIÓN' : 'AUTOMATIZACIÓN DE ACTIVIDADES DE MACROPROCESOS' }}</h1>
-      </div>
-
+      <h1>{{ selectedView === 'informe' ? 'INFORME DE GESTIÓN' : 'AUTOMATIZACIÓN DE ACTIVIDADES DE MACROPROCESOS' }}</h1>
       <div class="header-controls">
         <select id="viewSelect" v-model="selectedView" class="year-selector">
           <option value="module">Automatización de actividades de macroprocesos</option>
           <option value="informe">Informe de Gestión</option>
         </select>
 
-        <template v-if="selectedView !== 'informe'">
+        <!-- Controles para la vista de Informe de Gestión -->
+        <template v-if="selectedView === 'informe'">
+          <select v-model="anioCompartido" @change="onAnioChange" class="year-selector">
+            <option v-for="year in aniosDisponibles" :key="year" :value="year">{{ year }}</option>
+          </select>
+          <button @click="abrirModalCrearAnio" class="btn-crear-anio" title="Crear nuevo año">
+            + Crear año
+          </button>
+          <select v-model="mesInforme" @change="onMesInformeChange" class="month-selector">
+            <option value="">Todos los meses</option>
+            <option v-for="mes in listaMesesInforme" :key="mes.numero" :value="mes.numero">{{ mes.nombre }}</option>
+          </select>
+          <button @click="actualizarInforme" class="refresh-btn" :disabled="cargandoInforme">
+            {{ cargandoInforme ? '🔄 Cargando...' : '🔄 Actualizar' }}
+          </button>
+        </template>
+
+        <!-- Controles para la vista de Automatización -->
+        <template v-if="selectedView === 'module'">
+          <select v-model="anioCompartido" @change="onAnioChange" class="year-selector">
+            <option v-for="year in aniosDisponibles" :key="year" :value="year">{{ year }}</option>
+          </select>
+          <button @click="abrirModalCrearAnio" class="btn-crear-anio btn-blue" title="Crear nuevo año">
+            + Crear año
+          </button>
           <select
             id="monthFilter"
             v-model="monthFilter"
@@ -31,7 +55,7 @@
 
           <button
             type="button"
-            class="btn-crear-anio"
+            class="btn-crear-anio btn-blue"
             @click="resetFilters"
           >
             Limpiar filtros
@@ -41,7 +65,14 @@
     </div>
 
     <!-- Mostrar componente Indicators cuando se selecciona 'Informe de Gestión' -->
-    <Indicators v-if="selectedView === 'informe'" />
+    <Indicators 
+      v-if="selectedView === 'informe'" 
+      ref="indicatorsRef"
+      :anio-prop="anioCompartido"
+      :mes-prop="mesInforme"
+      @update:loading="cargandoInforme = $event"
+      @update:anios="aniosDisponibles = $event"
+    />
 
     <!-- Contenido del módulo de indicadores -->
     <template v-else>
@@ -213,7 +244,7 @@
             <div class="modal">
               <header class="modal__header">
                 <h3>{{ isEditing ? 'Editar análisis' : 'Nuevo análisis' }}</h3>
-                <button class="modal__close" type="button" @click="closeModal">×</button>
+                <!-- <button class="modal__close" type="button" @click="closeModal">×</button> -->
               </header>
 
               <div class="modal__body">
@@ -556,6 +587,46 @@
       </div>
     </section>
     </template>
+
+    <!-- Modal para crear nuevo año -->
+    <div v-if="mostrarModalAnio" class="modal-overlay" @click.self="cerrarModalAnio">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Crear Nuevo Año</h3>
+          <button class="btn-close" @click="cerrarModalAnio">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="nuevoAnioInput">Año:</label>
+            <input 
+              id="nuevoAnioInput" 
+              v-model.number="nuevoAnio.anio" 
+              type="number" 
+              placeholder="Ej: 2025" 
+              class="form-input"
+              :min="1900"
+              :max="2100"
+            />
+          </div>
+          <div class="form-group">
+            <label for="nuevaDescripcion">Descripción (opcional):</label>
+            <textarea 
+              id="nuevaDescripcion" 
+              v-model="nuevoAnio.descripcion" 
+              placeholder="Descripción del año..."
+              class="form-textarea"
+              rows="3"
+            ></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-cancelar" @click="cerrarModalAnio">Cancelar</button>
+          <button class="btn-guardar" @click="guardarNuevoAnio" :disabled="guardandoAnio">
+            {{ guardandoAnio ? 'Guardando...' : 'Guardar' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </main>
 </template>
 
@@ -569,6 +640,164 @@ const apiUrl = import.meta.env.VITE_API_URL
 const selectedView = ref('module') // 'module' o 'informe'
 const selectedIndicatorId = ref(1)
 const monthFilter = ref('Todos')
+
+// Referencia al componente Indicators
+const indicatorsRef = ref(null)
+
+// Variables compartidas entre ambas vistas
+const anioCompartido = ref(null)
+const aniosDisponibles = ref([])
+const mostrarModalAnio = ref(false)
+const nuevoAnio = ref({
+  anio: null,
+  descripcion: ''
+})
+const guardandoAnio = ref(false)
+
+// Variables para el Informe de Gestión
+const mesInforme = ref('')
+const cargandoInforme = ref(false)
+const listaMesesInforme = [
+  { numero: 1, nombre: 'Enero' },
+  { numero: 2, nombre: 'Febrero' },
+  { numero: 3, nombre: 'Marzo' },
+  { numero: 4, nombre: 'Abril' },
+  { numero: 5, nombre: 'Mayo' },
+  { numero: 6, nombre: 'Junio' },
+  { numero: 7, nombre: 'Julio' },
+  { numero: 8, nombre: 'Agosto' },
+  { numero: 9, nombre: 'Septiembre' },
+  { numero: 10, nombre: 'Octubre' },
+  { numero: 11, nombre: 'Noviembre' },
+  { numero: 12, nombre: 'Diciembre' }
+]
+
+// Funciones compartidas para gestión de años
+const cargarAniosDisponibles = async () => {
+  try {
+    const response = await axios.post(
+      `${apiUrl}/indicadores/obtener_anios`,
+      {},
+      {
+        headers: { Accept: "application/json" }
+      }
+    )
+    if (response.status === 200 && response.data.data) {
+      aniosDisponibles.value = response.data.data.map(a => a.anio)
+      if (aniosDisponibles.value.length > 0 && !anioCompartido.value) {
+        anioCompartido.value = aniosDisponibles.value[0]
+      }
+    }
+  } catch (error) {
+    console.error('Error cargando años:', error)
+  }
+}
+
+const onAnioChange = () => {
+  if (selectedView.value === 'informe') {
+    if (indicatorsRef.value && indicatorsRef.value.anioActual) {
+      indicatorsRef.value.anioActual = anioCompartido.value
+      if (indicatorsRef.value.cargarIndicadores) {
+        indicatorsRef.value.cargarIndicadores()
+      }
+    }
+  } else {
+    // Para la vista de automatización, recargar los indicadores estratégicos
+    cargarIndicadoresEstrategicos()
+  }
+}
+
+const abrirModalCrearAnio = () => {
+  nuevoAnio.value = {
+    anio: null,
+    descripcion: ''
+  }
+  mostrarModalAnio.value = true
+}
+
+const cerrarModalAnio = () => {
+  mostrarModalAnio.value = false
+  nuevoAnio.value = {
+    anio: null,
+    descripcion: ''
+  }
+}
+
+const guardarNuevoAnio = async () => {
+  if (!nuevoAnio.value.anio) {
+    alert('Por favor ingrese un año válido')
+    return
+  }
+
+  // Validar que sea un número de 4 dígitos
+  const anioNum = parseInt(nuevoAnio.value.anio)
+  if (isNaN(anioNum) || anioNum < 1900 || anioNum > 2100) {
+    alert('El año debe ser un número entre 1900 y 2100')
+    return
+  }
+
+  guardandoAnio.value = true
+
+  try {
+    const response = await axios.post(
+      `${apiUrl}/indicadores/crear_anio`,
+      {
+        anio: anioNum,
+        descripcion: nuevoAnio.value.descripcion
+      },
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    )
+
+    if (response.status === 200) {
+      alert('Año creado exitosamente')
+      cerrarModalAnio()
+      await cargarAniosDisponibles()
+      // Seleccionar el año recién creado
+      anioCompartido.value = anioNum
+      
+      // Recargar datos según la vista activa
+      if (selectedView.value === 'informe') {
+        actualizarInforme()
+      } else {
+        cargarIndicadoresEstrategicos()
+      }
+    }
+  } catch (error) {
+    console.error('Error creando año:', error)
+    if (error.response?.data?.message) {
+      alert(error.response.data.message)
+    } else {
+      alert('Error al crear el año')
+    }
+  } finally {
+    guardandoAnio.value = false
+  }
+}
+
+// Funciones para el Informe de Gestión
+
+const onMesInformeChange = () => {
+  if (indicatorsRef.value && indicatorsRef.value.mesSeleccionadoFiltro !== undefined) {
+    indicatorsRef.value.mesSeleccionadoFiltro = mesInforme.value
+  }
+}
+
+const actualizarInforme = () => {
+  if (indicatorsRef.value && indicatorsRef.value.cargarIndicadores) {
+    indicatorsRef.value.cargarIndicadores()
+  }
+}
+
+// Watch para cargar años cuando se cambia a la vista de informe
+watch(selectedView, (newView) => {
+  if (newView === 'informe' && aniosDisponibles.value.length === 0) {
+    cargarAniosDisponibles()
+  }
+})
 
 // Variables para el modal de análisis
 const showModal = ref(false)
@@ -1226,7 +1455,8 @@ watch(monthFilter, (nuevoMes) => {
 })
 
 // Cargar datos al montar el componente
-onMounted(() => {
+onMounted(async () => {
+  await cargarAniosDisponibles()
   cargarIndicadoresEstrategicos()
 })
 </script>
@@ -1237,7 +1467,25 @@ onMounted(() => {
   width: 100%;
   margin: 0;
   padding: 18px 32px 30px;
+  background: #f8f9fa;
+  min-height: 100vh;
   box-sizing: border-box;
+}
+
+/* Breadcrumb separado arriba del header */
+.header-breadcrumb {
+  padding: 10px 22px;
+  background: var(--gtic-surface);
+  border-radius: 10px 10px 0 0;
+  border: 1px solid #e2e6ea;
+  border-bottom: none;
+  box-shadow: 0 2px 4px rgba(19, 41, 64, 0.04);
+}
+
+.breadcrumb {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--gtic-text-muted);
 }
 
 /* Header con controles */
@@ -1248,15 +1496,10 @@ onMounted(() => {
   margin-bottom: 16px;
   padding: 20px 22px;
   background: var(--gtic-surface);
-  border-radius: 10px;
+  border-radius: 0 0 10px 10px;
   box-shadow: 0 8px 18px rgba(19, 41, 64, 0.08);
   border: 1px solid #e2e6ea;
-}
-
-.breadcrumb {
-  margin: 0 0 4px 0;
-  font-size: 0.78rem;
-  color: var(--gtic-text-muted);
+  border-top: 1px solid #dee2e6;
 }
 
 .header h1 {
@@ -1293,7 +1536,7 @@ onMounted(() => {
 
 .btn-crear-anio {
   padding: 6px 14px;
-  background: #2e4360;
+  background: #266148;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -1305,8 +1548,42 @@ onMounted(() => {
 }
 
 .btn-crear-anio:hover {
-  background: #22396a;
+  background: #357a5c;
   box-shadow: 0 2px 8px rgba(34, 57, 106, 0.25);
+}
+
+/* Variante azul para botones en vista de Automatización */
+.btn-crear-anio.btn-blue {
+  background: #22396a;
+}
+
+.btn-crear-anio.btn-blue:hover {
+  background: #2e4360;
+  box-shadow: 0 2px 8px rgba(34, 57, 106, 0.35);
+}
+
+.refresh-btn {
+  padding: 4px 18px;
+  background: #266148;
+  color: #fff;
+  border: none;
+  border-radius: 18px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: background 0.2s;
+  box-shadow: none;
+  outline: none;
+}
+
+.refresh-btn:hover:not(:disabled) {
+  background: #357a5c;
+}
+
+.refresh-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .indicator-selector select {
@@ -1717,164 +1994,167 @@ tbody tr:nth-child(even) {
   background: #f3f4f6;
 }
 
-/* Modal */
+/* Modal de análisis de causas */
 .modal-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(0, 0, 0, 0.6) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 2000 !important;
+  padding: 20px !important;
+  margin: 0 !important;
 }
 
 .modal {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  width: 90%;
-  max-width: 750px; /* Matching modal-content-wide */
-  max-height: 80vh;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
+  position: relative !important;
+  background: white !important;
+  border-radius: 12px !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3) !important;
+  width: 90% !important;
+  max-width: 750px !important;
+  max-height: 85vh !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  margin: 0 auto !important;
 }
 
 .modal__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
-  border-bottom: 1px solid #e0e0e0;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e2e6ea;
+  background: white;
+  gap: 16px;
 }
 
 .modal__header h3 {
   margin: 0;
-  font-size: 1.25rem;
-  color: #333;
+  font-size: 1.15rem;
+  color: var(--gtic-text-main);
+  font-weight: 600;
+  flex: 1;
 }
 
 .modal__close {
   background: none;
   border: none;
-  font-size: 1.5rem;
+  font-size: 24px;
   cursor: pointer;
-  color: #666;
-  padding: 0;
-  width: 30px;
-  height: 30px;
+  color: #64748b;
+  padding: 4px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 4px;
-  transition: background 0.2s;
+  transition: all 0.2s;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
 .modal__close:hover {
-  background: #f0f0f0;
+  background: #f1f5f9;
+  color: #1e293b;
 }
 
 .modal__body {
   padding: 20px;
   overflow-y: auto;
+  flex: 1;
 }
 
 .modal__footer {
   display: flex;
-  justify-content: center;
-  gap: 0px;
-  margin-top: 8px;
-  margin-bottom: 0;
-  width: 100%;
-  font-size: 0.78rem;
-  font-weight: 500;
-  color: #22396a;
-  letter-spacing: 0.5px;
-  user-select: none;
-  cursor: pointer;
-  font-size: 14px;
-  min-width: 18px;
-  text-align: center;
-  white-space: nowrap;
-  flex: 1 1 0;
-  background: #f5f5f5;
-  color: #333;
-  padding: 0; /* Override previous padding */
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 14px 20px;
+  border-top: 1px solid #e2e6ea;
+  background: white;
 }
 
 .modal__footer button {
-  flex: 1;
-  padding: 12px;
-  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
   cursor: pointer;
-  font-weight: 500;
-  font-size: 14px;
+  transition: all 0.2s;
+  border: none;
 }
 
 .modal__footer button.btn-ghost {
-  background: #f5f5f5;
-  color: #333;
-  border-radius: 0 0 0 8px;
+  background: #f1f5f9;
+  color: #475569;
 }
 
 .modal__footer button.btn-ghost:hover {
-  background: #e0e0e0;
+  background: #e2e8f0;
 }
 
 .modal__footer button.btn-primary {
-  background: #4CAF50;
+  background: #22396a;
   color: white;
-  border-radius: 0 0 8px 0;
 }
 
 .modal__footer button.btn-primary:hover {
-  background: #45a049;
+  background: #2e4360;
+  box-shadow: 0 2px 8px rgba(34, 57, 106, 0.3);
 }
-
 
 /* Formulario */
 .form-group {
   display: flex;
   flex-direction: column;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
 .form-group label {
-  font-size: 0.8rem;
-  margin-bottom: 4px;
+  font-size: 0.85rem;
+  margin-bottom: 6px;
   color: var(--gtic-text-main);
+  font-weight: 600;
 }
 
 .form-group input,
 .form-group select,
 .form-group textarea {
   border-radius: 8px;
-  border: 1px solid #d1d5db;
-  padding: 6px 8px;
-  font-size: 0.85rem;
+  border: 1px solid #cbd5e1;
+  padding: 10px 12px;
+  font-size: 0.9rem;
   font-family: inherit;
   color: var(--gtic-text-main);
+  transition: all 0.2s;
 }
 
 .form-group textarea {
   resize: vertical;
+  min-height: 80px;
 }
 
 .form-group input:focus,
 .form-group select:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: var(--gtic-secondary);
-  box-shadow: 0 0 0 1px rgba(122, 199, 137, 0.35);
+  border-color: #22396a;
+  box-shadow: 0 0 0 3px rgba(34, 57, 106, 0.1);
 }
 
 .form-row {
   display: grid;
   grid-template-columns: 2fr 1fr;
-  gap: 12px;
+  gap: 16px;
+  margin-bottom: 16px;
 }
 
 /* ============ ESTILOS DE INDICATOR CHART ============ */
@@ -2695,6 +2975,145 @@ tbody tr:nth-child(even) {
 .legend-bar {
   height: 14px;
   border-radius: 3px;
+}
+
+/* ============ ESTILOS DEL MODAL DE CREACIÓN DE AÑO ============ */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e2e6ea;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: var(--gtic-text-main);
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  font-size: 28px;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.btn-close:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: var(--gtic-text-main);
+  font-size: 0.9rem;
+}
+
+.form-input,
+.form-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: var(--gtic-text-main);
+  transition: all 0.2s;
+  box-sizing: border-box;
+}
+
+.form-input:focus,
+.form-textarea:focus {
+  outline: none;
+  border-color: var(--gtic-secondary);
+  box-shadow: 0 0 0 3px rgba(122, 199, 137, 0.1);
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid #e2e6ea;
+}
+
+.modal-footer button {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.btn-cancelar {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.btn-cancelar:hover {
+  background: #e2e8f0;
+}
+
+.btn-guardar {
+  background: #266148;
+  color: white;
+}
+
+.btn-guardar:hover:not(:disabled) {
+  background: #357a5c;
+  box-shadow: 0 2px 8px rgba(38, 97, 72, 0.3);
+}
+
+.btn-guardar:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>
 

@@ -1,25 +1,5 @@
-
 <template>
   <div class="indicators">
-    <div class="header">
-      <h1>INFORME DE GESTIÓN</h1>
-      <div class="header-controls">
-        <select v-model="anioActual" @change="cargarIndicadores" class="year-selector">
-          <option v-for="year in aniosDisponibles" :key="year" :value="year">{{ year }}</option>
-        </select>
-        <button @click="abrirModalCrearAnio" class="btn-crear-anio" title="Crear nuevo año">
-          + Crear año
-        </button>
-        <select v-model="mesSeleccionadoFiltro" class="month-selector">
-          <option value="">Todos los meses</option>
-          <option v-for="mes in listaMeses" :key="mes.numero" :value="mes.numero">{{ mes.nombre }}</option>
-        </select>
-        <button @click="cargarIndicadores" class="refresh-btn" :disabled="cargando">
-          {{ cargando ? '🔄 Cargando...' : '🔄 Actualizar' }}
-        </button>
-      </div>
-    </div>
-
     <div v-if="cargando" class="loading">
       Cargando indicadores...
     </div>
@@ -547,16 +527,44 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch, defineProps, defineEmits, defineExpose } from 'vue'
 import axios from 'axios'
 import apiUrl from "../../config.js"
 
+// Props recibidos del componente padre
+const props = defineProps({
+  anioProp: {
+    type: Number,
+    default: null
+  },
+  mesProp: {
+    type: [String, Number],
+    default: ''
+  }
+})
+
+// Emits para comunicar con el componente padre
+const emit = defineEmits(['update:loading', 'update:anios'])
 
 // Año actual o seleccionado
-const anioActual = ref(null)
-const mesSeleccionadoFiltro = ref('')
+const anioActual = ref(props.anioProp)
+const mesSeleccionadoFiltro = ref(props.mesProp)
 const cargando = ref(false)
 const datosIndicadores = ref(null)
+
+// Watch para sincronizar props con el estado interno
+watch(() => props.anioProp, (newVal) => {
+  if (newVal) anioActual.value = newVal
+})
+
+watch(() => props.mesProp, (newVal) => {
+  mesSeleccionadoFiltro.value = newVal
+})
+
+// Watch para emitir el estado de carga
+watch(cargando, (newVal) => {
+  emit('update:loading', newVal)
+})
 
 // Variables para gestión dinámica de años
 const aniosDisponibles = ref([])
@@ -699,8 +707,6 @@ const porcentajeMetaDisplay = computed(() => {
     ? `${porcentajeMeta.value}%`
     : '—'
 })
-
-import { watch } from 'vue'
 
 // Watcher para cargar tickets cuando cambia el mes seleccionado
 watch(mesSeleccionadoFiltro, (nuevoMes) => {
@@ -1116,6 +1122,7 @@ const cargarAniosDisponibles = async () => {
 
     if (response.status === 200 && response.data.data) {
       aniosDisponibles.value = response.data.data.map(a => a.anio)
+      emit('update:anios', aniosDisponibles.value)
       
       // Si hay años disponibles y el año actual no está en la lista, seleccionar el primero
       if (aniosDisponibles.value.length > 0 && !aniosDisponibles.value.includes(anioActual.value)) {
@@ -1126,6 +1133,7 @@ const cargarAniosDisponibles = async () => {
     console.error('Error cargando años disponibles:', error)
     // Dejar la lista vacía si hay error
     aniosDisponibles.value = []
+    emit('update:anios', [])
   }
 }
 
@@ -1204,99 +1212,21 @@ onMounted(async () => {
   //   console.log('Meses para gráfica:', JSON.parse(JSON.stringify(meses.value)))
   // }, 1500)
 })
+
+// Exponer funciones y variables para que el componente padre pueda acceder a ellas
+defineExpose({
+  cargarIndicadores,
+  abrirModalCrearAnio,
+  anioActual,
+  mesSeleccionadoFiltro
+})
 </script>
 
 <style scoped>
 .indicators {
-  padding: 18px 32px 30px;
-  background: #f8f9fa;
-  min-height: 100vh;
+  padding: 0;
+  background: transparent;
   box-sizing: border-box;
-}
-
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-  padding: 20px 22px;
-  background: var(--gtic-surface);
-  border-radius: 10px;
-  box-shadow: 0 8px 18px rgba(19, 41, 64, 0.08);
-  border: 1px solid #e2e6ea;
-}
-
-.header h1 {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--gtic-text-main);
-  margin: 0;
-}
-
-.header-controls {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-.year-selector {
-  min-width: 120px;
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid gray;
-  background: var(--gtic-surface);
-  font-size: 0.85rem;
-  color: var(--gtic-text-main);
-  outline: none;
-  cursor: pointer;
-}
-
-.year-selector:focus {
-  border-color: var(--gtic-secondary);
-  box-shadow: 0 0 0 1px rgba(122, 199, 137, 0.35);
-}
-
-.btn-crear-anio {
-  padding: 6px 14px;
-  background: #266148;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  white-space: nowrap;
-}
-
-.btn-crear-anio:hover {
-  background: #357a5c;
-  box-shadow: 0 2px 8px rgba(34, 57, 106, 0.25);
-}
-
-
-.refresh-btn {
-  padding: 4px 18px;
-  background: #266148;
-  color: #fff;
-  border: none;
-  border-radius: 18px;
-  font-size: 0.92rem;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  cursor: pointer;
-  transition: background 0.2s;
-  box-shadow: none;
-  outline: none;
-}
-
-.refresh-btn:hover:not(:disabled) {
-  background: #357a5c;
-}
-
-.refresh-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .loading {
