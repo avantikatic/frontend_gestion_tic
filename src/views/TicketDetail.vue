@@ -168,7 +168,7 @@ function renderBody(txt){
 }
 </script>
 
-<style>
+<style scoped>
 .ticket-detail{ height:100%; display:grid; grid-template-rows: 56px 1fr; background:var(--bg) }
 
 /* header */

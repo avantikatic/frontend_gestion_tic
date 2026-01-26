@@ -2323,7 +2323,7 @@ function cleanHtmlForTicketModal(htmlContent) {
 }
 </script>
 
-<style>
+<style scoped>
 .tickets{ display:flex; flex-direction:column; gap:12px }
 
 /* ===== Toolbar / Filtros ===== */
