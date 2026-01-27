@@ -1415,15 +1415,17 @@ async function agregarProveedor(nombre) {
   if (!clean) return;
   
   try {
-    const response = await fetch(`${apiUrl}/licencias/catalogos/proveedores/crear`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre: clean })
-    });
+    const response = await axios.post(
+      `${apiUrl}/licencias/catalogos/proveedores/crear`,
+      { nombre: clean },
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    );
     
-    const data = await response.json();
-    
-    if (data.status === 201 || data.status === 200) {
+    if (response.status === 201 || response.status === 200) {
       // Recargar la lista de proveedores para obtener el ID correcto
       await cargarCatalogos();
       
@@ -1436,7 +1438,7 @@ async function agregarProveedor(nombre) {
         proveedorSelect.value = nuevoProveedor.id;
       }
       
-      showToast(data.message);
+      showToast(response.data.message || "Proveedor creado.");
       return nuevoProveedor;
     } else {
       showToast("Error al crear proveedor.");
@@ -1460,15 +1462,17 @@ async function agregarProducto(nombre) {
   if (!clean) return;
   
   try {
-    const response = await fetch(`${apiUrl}/licencias/catalogos/productos-servicios/crear`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre: clean })
-    });
+    const response = await axios.post(
+      `${apiUrl}/licencias/catalogos/productos-servicios/crear`,
+      { nombre: clean },
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    );
     
-    const data = await response.json();
-    
-    if (data.status === 201 || data.status === 200) {
+    if (response.status === 201 || response.status === 200) {
       // Recargar la lista de productos para obtener el ID correcto
       await cargarCatalogos();
       
@@ -1481,7 +1485,7 @@ async function agregarProducto(nombre) {
         productoSelect.value = nuevoProducto.id;
       }
       
-      showToast(data.message);
+      showToast(response.data.message || "Producto/servicio creado.");
       return nuevoProducto;
     } else {
       showToast("Error al crear producto/servicio.");
