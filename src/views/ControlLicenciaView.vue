@@ -5,7 +5,8 @@
         <div class="logo">FTC</div>
         <div class="title">
           <h1>Control de Licencias</h1>
-          <p>Formato FTC-248 · Prototipo</p>
+          <p>Formato FTC-248 · Versión 2 · 18/12/2023</p>
+          <p class="p-date">18/12/2023</p>
         </div>
       </div>
 
@@ -1640,6 +1641,10 @@ body{
 }
 .title h1{ margin:0; font-size:15px; color:#1f3150; }
 .title p{ margin:2px 0 0; font-size:12px; color: #64748b; }
+.title .p-date {
+  font-size: 11.5px;
+  color: #64748b;
+}
 
 .actions{ display:flex; gap:8px; flex-wrap:wrap; }
 
