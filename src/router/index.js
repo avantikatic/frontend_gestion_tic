@@ -5,6 +5,7 @@ import TicketDetail from '@/views/TicketDetail.vue'
 import Backups from '@/views/Backups.vue'
 import Availability from '@/views/Availability.vue'
 import IndicatorsModule from '@/views/IndicatorsModule.vue'
+import ControlLicenciaView from '../views/ControlLicenciaView.vue'
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
@@ -15,6 +16,7 @@ const router = createRouter({
         { path: '/backups', name: 'backups', component: Backups },
         { path: '/disponibilidad', name: 'availability', component: Availability },
         { path: '/indicadores', name: 'indicators', component: IndicatorsModule },
+        { path: '/control-licencias', name: 'license-control', component: ControlLicenciaView },
         { path: '/:pathMatch(.*)*', redirect: '/' },
     ],
     scrollBehavior() { return { top: 0 } }

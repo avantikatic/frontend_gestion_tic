@@ -12,6 +12,7 @@
         <router-link to="/backups" class="tab" :class="{active: $route.name==='backups'}">Copias de seguridad</router-link>
         <router-link to="/disponibilidad" class="tab" :class="{active: $route.name==='availability'}">Disponibilidad</router-link>
         <router-link to="/indicadores" class="tab" :class="{active: $route.name==='indicators'}">Indicadores</router-link>
+        <router-link to="/control-licencias" class="tab" :class="{active: $route.name==='license-control'}">Control Licencias</router-link>
       </nav>
 
       <div class="who"><span class="muted">soporte@avantika.com.co</span></div>
