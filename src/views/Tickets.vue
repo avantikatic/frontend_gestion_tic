@@ -163,7 +163,12 @@
       <div class="backdrop" @click="closeModal"></div>
       <div class="sheet" role="dialog" aria-modal="true">
         <div class="sheet-head">
-          <h3>{{ modal.mode==='create' ? 'Nuevo Ticket' : 'Editar Ticket' }}</h3>
+          <div style="flex: 1;">
+            <h3>{{ modal.mode==='create' ? 'Nuevo Ticket' : 'Editar Ticket' }} {{ form.ticket_id_display || form.ticket_id }}</h3>
+            <p style="margin: 4px 0 0 0; font-size: 13px; color: #666;">
+              <span v-if="form.created_at" style="font-size: 14px; color: #666;">Fecha Solicitud: {{ form.created_at }}</span>
+            </p>
+          </div>
           <button class="icon" @click="closeModal">✕</button>
         </div>
 

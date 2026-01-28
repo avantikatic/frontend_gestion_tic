@@ -5,7 +5,7 @@
         <div class="logo">FTC</div>
         <div class="title">
           <h1>Control de Licencias</h1>
-          <p>Formato FTC-248 · Versión 2 · 18/12/2023</p>
+          <p>Formato FTC-248 · Versión 3</p>
           <p class="p-date">18/12/2023</p>
         </div>
       </div>
@@ -85,9 +85,8 @@
             <div class="dashFilters">
               <input v-model="q" class="dashSearch" placeholder="Buscar proveedor, producto, responsable…" />
 
-              <select v-model="fProveedor" class="dashSelect">
-                <option value="">Proveedor (Todos)</option>
-                <option v-for="p in proveedoresUnicos" :key="p" :value="p">{{ p }}</option>
+              <select v-model="fProveedor" class="dashSelect" disabled style="opacity: 0.5;">
+                <option value="">Proveedor (Búsqueda deshabilitada)</option>
               </select>
 
               <select v-model="fFrecuencia" class="dashSelect">
@@ -269,24 +268,54 @@
 
               <div class="newFormGroup">
                 <label class="newLabel">Tipo de servicio</label>
-                <select v-model="modalDraft.tipoServicioId" class="newInput">
+                <select v-model="tipoServicioSelect" class="newInput">
                   <option value="">— Selecciona —</option>
                   <option v-for="t in tiposServicio" :key="t.id" :value="t.id">{{ t.nombre }}</option>
+                  <option value="__new__">+ Crear nuevo…</option>
                 </select>
+
+                <div v-if="tipoServicioSelect==='__new__'" class="newInlineCreate">
+                  <input v-model="nuevoTipoServicio" class="newInput" placeholder="Nombre del tipo de servicio" />
+                  <button type="button" class="newBtnSmall" @click="crearTipoServicio">Agregar</button>
+                </div>
               </div>
 
               <div class="newFormGroup">
                 <label class="newLabel">Proveedor</label>
-                <select v-model="proveedorSelect" class="newInput">
-                  <option value="">— Selecciona —</option>
-                  <option v-for="p in proveedores" :key="p.id" :value="p.id">{{ p.nombre }}</option>
-                  <option value="__new__">+ Crear nuevo…</option>
-                </select>
-
-                <div v-if="proveedorSelect==='__new__'" class="newInlineCreate">
-                  <input v-model="nuevoProveedor" class="newInput" placeholder="Nombre del proveedor" />
-                  <button type="button" class="newBtnSmall" @click="crearProveedor">Agregar</button>
+                <div class="searchContainer">
+                  <input 
+                    ref="proveedorInputRef"
+                    v-model="proveedorBusqueda" 
+                    class="newInput" 
+                    placeholder="Buscar proveedor…"
+                    @input="filtrarProveedores"
+                    @focus="mostrarDropdownProveedor = true; actualizarPosicionDropdown()"
+                    @blur="ocultarDropdownProveedor"
+                    autocomplete="off"
+                  />
                 </div>
+
+                <!-- Dropdown teleportado fuera del modal -->
+                <Teleport to="body">
+                  <ul 
+                    v-if="mostrarDropdownProveedor && proveedoresFiltrados.length > 0" 
+                    class="searchDropdown"
+                    :style="posicionDropdown"
+                  >
+                    <li 
+                      v-for="p in proveedoresFiltrados" 
+                      :key="p.id" 
+                      class="dropdownItem"
+                      @mousedown.prevent
+                      @click="seleccionarProveedor(p)"
+                    >
+                      {{ p.nombre }}
+                    </li>
+                  </ul>
+                  <div v-if="mostrarDropdownProveedor && proveedoresFiltrados.length === 0 && proveedorBusqueda" class="dropdownEmpty">
+                    No hay coincidencias
+                  </div>
+                </Teleport>
               </div>
 
               <div class="newFormGroup">
@@ -352,10 +381,16 @@
 
               <div class="newFormGroup">
                 <label class="newLabel">Método de pago</label>
-                <select v-model="modalDraft.metodoPagoId" class="newInput">
+                <select v-model="metodoPagoSelect" class="newInput">
                   <option value="">— Selecciona —</option>
                   <option v-for="m in metodosPago" :key="m.id" :value="m.id">{{ m.nombre }}</option>
+                  <option value="__new__">+ Crear nuevo…</option>
                 </select>
+
+                <div v-if="metodoPagoSelect==='__new__'" class="newInlineCreate">
+                  <input v-model="nuevoMetodoPago" class="newInput" placeholder="Nombre del método de pago" />
+                  <button type="button" class="newBtnSmall" @click="crearMetodoPago">Agregar</button>
+                </div>
               </div>
 
               <div class="newSectionHeader" style="margin-top: 32px;">
@@ -651,10 +686,55 @@ const modalDraft = ref(null);
 const historialLicencia = ref([]);
 
 // Estados formulario
-const proveedorSelect = ref("");
 const productoSelect = ref("");
-const nuevoProveedor = ref("");
 const nuevoProducto = ref("");
+const tipoServicioSelect = ref("");
+const nuevoTipoServicio = ref("");
+const metodoPagoSelect = ref("");
+const nuevoMetodoPago = ref("");
+
+// Estados búsqueda de proveedor
+const proveedorBusqueda = ref("");
+const mostrarDropdownProveedor = ref(false);
+const proveedorInputRef = ref(null);
+const posicionDropdown = ref({
+  position: 'fixed',
+  top: '0px',
+  left: '0px',
+  width: '0px',
+  zIndex: 99999
+});
+
+// Computed para filtrar proveedores
+const proveedoresFiltrados = computed(() => {
+  const query = proveedorBusqueda.value.toLowerCase().trim();
+  if (!query) return proveedores.value.slice(0, 50); // Limitar a 50 iniciales
+  return proveedores.value.filter(p => p.nombre.toLowerCase().includes(query)).slice(0, 50);
+});
+
+// Función para filtrar proveedores (para @input)
+function filtrarProveedores() {
+  // El computed se actualiza automáticamente, solo disparamos aquí si es necesario
+  // En este caso, el computed ya maneja el filtrado
+}
+
+// Función para calcular posición del dropdown
+function actualizarPosicionDropdown() {
+  if (!proveedorInputRef.value) return;
+  
+  const rect = proveedorInputRef.value.getBoundingClientRect();
+  posicionDropdown.value = {
+    position: 'fixed',
+    top: (rect.bottom + 2) + 'px',
+    left: rect.left + 'px',
+    width: rect.width + 'px'
+  };
+}
+
+// Función para ocultar dropdown con delay (similar a ActivoForm.vue)
+function ocultarDropdownProveedor() {
+  setTimeout(() => { mostrarDropdownProveedor.value = false; }, 150);
+}
 
 // Estados dashboard
 const q = ref("");
@@ -674,21 +754,8 @@ function showToast(msg) {
 }
 
 // Watchers para el formulario
-watch(() => modalDraft.value?.proveedorId, (v) => {
-  if (proveedorSelect.value !== "__new__") proveedorSelect.value = v || "";
-});
 watch(() => modalDraft.value?.productoId, (v) => {
   if (productoSelect.value !== "__new__") productoSelect.value = v || "";
-});
-
-watch(proveedorSelect, (v) => {
-  if (!modalDraft.value || v === "__new__") return;
-  const proveedorId = parseInt(v);
-  modalDraft.value.proveedorId = proveedorId || null;
-  
-  // Actualizar también el nombre para mostrar
-  const proveedor = proveedores.value.find(p => p.id === proveedorId);
-  modalDraft.value.proveedor = proveedor?.nombre || "";
 });
 
 watch(productoSelect, (v) => {
@@ -701,16 +768,31 @@ watch(productoSelect, (v) => {
   modalDraft.value.producto = producto?.nombre || "";
 });
 
-// Watchers para tipo de servicio y método de pago
+// Watchers para tipo de servicio
 watch(() => modalDraft.value?.tipoServicioId, (v) => {
-  if (!modalDraft.value) return;
-  const tipoServicio = tiposServicio.value.find(t => t.id === v);
+  if (tipoServicioSelect.value !== "__new__") tipoServicioSelect.value = v || "";
+});
+
+watch(tipoServicioSelect, (v) => {
+  if (!modalDraft.value || v === "__new__") return;
+  const tipoServicioId = parseInt(v);
+  modalDraft.value.tipoServicioId = tipoServicioId || null;
+  
+  const tipoServicio = tiposServicio.value.find(t => t.id === tipoServicioId);
   modalDraft.value.tipoServicio = tipoServicio?.nombre || "";
 });
 
+// Watchers para método de pago
 watch(() => modalDraft.value?.metodoPagoId, (v) => {
-  if (!modalDraft.value) return;
-  const metodoPago = metodosPago.value.find(m => m.id === v);
+  if (metodoPagoSelect.value !== "__new__") metodoPagoSelect.value = v || "";
+});
+
+watch(metodoPagoSelect, (v) => {
+  if (!modalDraft.value || v === "__new__") return;
+  const metodoPagoId = parseInt(v);
+  modalDraft.value.metodoPagoId = metodoPagoId || null;
+  
+  const metodoPago = metodosPago.value.find(m => m.id === metodoPagoId);
   modalDraft.value.metodoPago = metodoPago?.nombre || "";
 });
 
@@ -1159,9 +1241,11 @@ function abrirEdicion(id) {
   modal.value = { open: true, mode: "edit", licenseId: id };
   modalDraft.value = cloneSafe(lic);
   
-  // Establecer los IDs en los selects
-  proveedorSelect.value = modalDraft.value.proveedorId || "";
+  // Establecer el nombre del proveedor en la búsqueda
+  proveedorBusqueda.value = modalDraft.value.proveedor || "";
   productoSelect.value = modalDraft.value.productoId || "";
+  tipoServicioSelect.value = modalDraft.value.tipoServicioId || "";
+  metodoPagoSelect.value = modalDraft.value.metodoPagoId || "";
   
   // Usar el historial que ya viene en los datos de la licencia
   historialLicencia.value = lic.historial || [];
@@ -1198,8 +1282,11 @@ function crearNuevaLicencia() {
     historial: [],
   };
   
-  proveedorSelect.value = "";
+  // Limpiar búsqueda de proveedor
+  proveedorBusqueda.value = "";
   productoSelect.value = "";
+  tipoServicioSelect.value = "";
+  metodoPagoSelect.value = "";
 }
 
 function cerrarModal() {
@@ -1209,10 +1296,15 @@ function cerrarModal() {
   historialLicencia.value = [];
   openBaja.value = false;
   motivoBajaDraft.value = "";
-  proveedorSelect.value = "";
+  
+  // Limpiar búsquedas
+  proveedorBusqueda.value = "";
   productoSelect.value = "";
-  nuevoProveedor.value = "";
   nuevoProducto.value = "";
+  tipoServicioSelect.value = "";
+  nuevoTipoServicio.value = "";
+  metodoPagoSelect.value = "";
+  nuevoMetodoPago.value = "";
 }
 
 
@@ -1411,51 +1503,13 @@ async function reactivarServicio() {
 // CATALOGOS
 // ===================================================
 
-async function agregarProveedor(nombre) {
-  const clean = (nombre || "").trim();
-  if (!clean) return;
+function seleccionarProveedor(proveedor) {
+  if (!modalDraft.value) return;
   
-  try {
-    const response = await axios.post(
-      `${apiUrl}/licencias/catalogos/proveedores/crear`,
-      { nombre: clean },
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-    
-    if (response.status === 201 || response.status === 200) {
-      // Recargar la lista de proveedores para obtener el ID correcto
-      await cargarCatalogos();
-      
-      // Buscar el proveedor recién creado
-      const nuevoProveedor = proveedores.value.find(p => p.nombre === clean);
-      
-      if (nuevoProveedor && modalDraft.value) {
-        modalDraft.value.proveedorId = nuevoProveedor.id;
-        modalDraft.value.proveedor = nuevoProveedor.nombre;
-        proveedorSelect.value = nuevoProveedor.id;
-      }
-      
-      showToast(response.data.message || "Proveedor creado.");
-      return nuevoProveedor;
-    } else {
-      showToast("Error al crear proveedor.");
-    }
-  } catch (error) {
-    console.error("Error creando proveedor:", error);
-    showToast("Error al conectar con el servidor.");
-  }
-}
-
-async function crearProveedor() {
-  const name = nuevoProveedor.value.trim();
-  if (!name) return;
-  
-  await agregarProveedor(name);
-  nuevoProveedor.value = "";
+  modalDraft.value.proveedorId = proveedor.id;
+  modalDraft.value.proveedor = proveedor.nombre;
+  proveedorBusqueda.value = proveedor.nombre;
+  mostrarDropdownProveedor.value = false;
 }
 
 async function agregarProducto(nombre) {
@@ -1503,6 +1557,96 @@ async function crearProducto() {
   
   await agregarProducto(name);
   nuevoProducto.value = "";
+}
+
+async function agregarTipoServicio(nombre) {
+  const clean = (nombre || "").trim();
+  if (!clean) return;
+  
+  try {
+    const response = await axios.post(
+      `${apiUrl}/licencias/catalogos/tipos-servicio/crear`,
+      { nombre: clean },
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    );
+    
+    if (response.status === 201 || response.status === 200) {
+      await cargarCatalogos();
+      
+      const nuevoTipo = tiposServicio.value.find(t => t.nombre === clean);
+      
+      if (nuevoTipo && modalDraft.value) {
+        modalDraft.value.tipoServicioId = nuevoTipo.id;
+        modalDraft.value.tipoServicio = nuevoTipo.nombre;
+        tipoServicioSelect.value = nuevoTipo.id;
+      }
+      
+      showToast(response.data.message || "Tipo de servicio creado.");
+      return nuevoTipo;
+    } else {
+      showToast("Error al crear tipo de servicio.");
+    }
+  } catch (error) {
+    console.error("Error creando tipo de servicio:", error);
+    showToast("Error al conectar con el servidor.");
+  }
+}
+
+async function crearTipoServicio() {
+  const name = nuevoTipoServicio.value.trim();
+  if (!name) return;
+  
+  await agregarTipoServicio(name);
+  nuevoTipoServicio.value = "";
+}
+
+async function agregarMetodoPago(nombre) {
+  const clean = (nombre || "").trim();
+  if (!clean) return;
+  
+  try {
+    const response = await axios.post(
+      `${apiUrl}/licencias/catalogos/metodos-pago/crear`,
+      { nombre: clean },
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    );
+    
+    if (response.status === 201 || response.status === 200) {
+      await cargarCatalogos();
+      
+      const nuevoMetodo = metodosPago.value.find(m => m.nombre === clean);
+      
+      if (nuevoMetodo && modalDraft.value) {
+        modalDraft.value.metodoPagoId = nuevoMetodo.id;
+        modalDraft.value.metodoPago = nuevoMetodo.nombre;
+        metodoPagoSelect.value = nuevoMetodo.id;
+      }
+      
+      showToast(response.data.message || "Método de pago creado.");
+      return nuevoMetodo;
+    } else {
+      showToast("Error al crear método de pago.");
+    }
+  } catch (error) {
+    console.error("Error creando método de pago:", error);
+    showToast("Error al conectar con el servidor.");
+  }
+}
+
+async function crearMetodoPago() {
+  const name = nuevoMetodoPago.value.trim();
+  if (!name) return;
+  
+  await agregarMetodoPago(name);
+  nuevoMetodoPago.value = "";
 }
 
 // ===================================================
@@ -2851,5 +2995,54 @@ textarea.input{ resize:vertical; }
   .filterSelect{
     width: 100%;
   }
+}
+
+/* Search Container */
+.searchContainer {
+  position: relative;
+  width: 100%;
+}
+
+.searchDropdown {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  max-height: 250px;
+  overflow-y: auto;
+  z-index: 99999 !important;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: none;
+}
+
+.dropdownItem {
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  border-bottom: 1px solid var(--line);
+  list-style: none;
+}
+
+.dropdownItem:hover {
+  background-color: var(--surface-2);
+}
+
+.dropdownItem:last-child {
+  border-bottom: none;
+}
+
+.dropdownEmpty {
+  padding: 12px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  position: fixed;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  z-index: 99999 !important;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.3);
 }
 </style>
