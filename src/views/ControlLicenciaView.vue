@@ -2,11 +2,10 @@
   <div class="app">
     <header class="topbar">
       <div class="brand">
-        <div class="logo">FTC</div>
+        <div class="logo">CL</div>
         <div class="title">
           <h1>Control de Licencias</h1>
-          <p>Formato FTC-248 · Versión 3</p>
-          <p class="p-date">18/12/2023</p>
+          <p style="cursor: pointer; text-decoration: underline;" @click="openVersiones = true">Control Versión</p>
         </div>
       </div>
 
@@ -629,6 +628,132 @@
       </div>
     </div>
 
+    <!-- MODAL: Versiones del Control (GLOBAL) -->
+    <div v-if="openVersiones" class="newModalOverlay" @click.self="openVersiones = false">
+      <div class="newModalContainer" style="max-width: 1000px;">
+        <!-- HEADER -->
+        <div class="newModalHeader">
+          <div class="newModalHeaderLeft">
+            <h2 class="newModalTitle">Versiones del Control</h2>
+            <p class="newModalSubtitle">Historial de versiones del control de licencias.</p>
+          </div>
+          <button class="newModalClose" @click="openVersiones = false" aria-label="Cerrar">✕</button>
+        </div>
+
+        <!-- BODY -->
+        <div class="newModalBody" style="padding: 24px;">
+          <!-- Sección de título interno -->
+          <div class="newSectionHeader" style="margin-bottom: 24px;">
+            <h3 class="newSectionTitle">Registrar nueva versión</h3>
+            <p class="newSectionDesc">Guarda la versión actual del control y una breve descripción de los cambios.</p>
+          </div>
+
+          <!-- Formulario -->
+          <form @submit.prevent="agregarVersion" style="margin-bottom: 32px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+              <div class="newFormGroup">
+                <label class="newLabel">Fecha</label>
+                <input v-model="versionFecha" class="newInput" type="date" required />
+              </div>
+
+              <div class="newFormGroup">
+                <label class="newLabel">Versión</label>
+                <input
+                  v-model="versionNumero"
+                  class="newInput"
+                  placeholder="Ej: 1.0.0, 2.1.3"
+                  required
+                />
+              </div>
+            </div>
+
+            <div class="newFormGroup" style="margin-bottom: 20px;">
+              <label class="newLabel">Descripción</label>
+              <textarea
+                v-model="versionDescripcion"
+                class="newTextarea"
+                rows="3"
+                placeholder="Ej: Se actualizó la tabla de proveedores, se agregaron nuevos campos..."
+                required
+              ></textarea>
+            </div>
+
+            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+              <button class="newBtnPrimary" type="submit">Guardar versión</button>
+            </div>
+          </form>
+
+          <!-- Tabla de versiones -->
+          <div class="historyCard">
+            <div class="historyTableWrap">
+              <table class="historyTable">
+                <thead>
+                  <tr>
+                    <th style="width: 120px;">Fecha</th>
+                    <th style="width: 150px;">Versión</th>
+                    <th>Descripción</th>
+                    <th style="width: 100px; text-align: right;">Acción</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  <tr v-if="!versiones?.length">
+                    <td colspan="4" style="text-align: center; padding: 40px; color: #6b7280;">
+                      Aún no hay versiones registradas.
+                    </td>
+                  </tr>
+
+                  <tr v-for="v in versiones" :key="v.id">
+                    <td style="font-family: 'Courier New', monospace; font-size: 13px;">{{ v.fecha }}</td>
+                    <td style="color: #374151; text-align: center;">{{ v.version }}</td>
+                    <td style="color: #374151;">{{ v.descripcion }}</td>
+                    <td style="text-align: right;">
+                      <button 
+                        type="button"
+                        @click="eliminarVersion(v.id)" 
+                        style="padding: 6px 12px; font-size: 13px; color: #dc2626; background: white; border: 1px solid #fee2e2; border-radius: 6px; cursor: pointer; transition: all 0.2s;"
+                        @mouseover="$event.target.style.background='#fef2f2'"
+                        @mouseout="$event.target.style.background='white'"
+                      >
+                        Eliminar
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Paginación versiones -->
+            <div v-if="totalPaginasVersiones > 1" style="display: flex; justify-content: center; align-items: center; gap: 12px; margin-top: 16px; padding: 12px;">
+              <button 
+                @click="paginaAnteriorVersiones" 
+                :disabled="paginaActualVersiones === 1"
+                class="newBtnSecondary"
+                style="padding: 6px 12px; font-size: 13px;"
+                :style="{ opacity: paginaActualVersiones === 1 ? 0.5 : 1, cursor: paginaActualVersiones === 1 ? 'not-allowed' : 'pointer' }"
+              >
+                ← Anterior
+              </button>
+              
+              <span style="color: #374151; font-size: 13px;">
+                Página {{ paginaActualVersiones }} de {{ totalPaginasVersiones }}
+              </span>
+              
+              <button 
+                @click="paginaSiguienteVersiones" 
+                :disabled="paginaActualVersiones === totalPaginasVersiones"
+                class="newBtnSecondary"
+                style="padding: 6px 12px; font-size: 13px;"
+                :style="{ opacity: paginaActualVersiones === totalPaginasVersiones ? 0.5 : 1, cursor: paginaActualVersiones === totalPaginasVersiones ? 'not-allowed' : 'pointer' }"
+              >
+                Siguiente →
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div v-if="toast.show" class="toast">{{ toast.msg }}</div>
   </div>
 </template>
@@ -679,9 +804,22 @@ const revFecha = ref(new Date().toISOString().slice(0, 10));
 const revTipo = ref(""); // Ahora será el ID del tipo
 const revObservaciones = ref("");
 
+// Estados versiones
+const versiones = ref([]);
+const versionFecha = ref(new Date().toISOString().slice(0, 10));
+const versionNumero = ref("");
+const versionDescripcion = ref("");
+
+// Paginación versiones
+const paginaActualVersiones = ref(1);
+const totalPaginasVersiones = ref(1);
+const totalVersiones = ref(0);
+const porPaginaVersiones = 5;
+
 const selectedId = ref(null);
 const modal = ref({ open: false, mode: "edit", licenseId: null });
 const openRevisiones = ref(false);
+const openVersiones = ref(false);
 const modalDraft = ref(null);
 const historialLicencia = ref([]);
 
@@ -1056,11 +1194,130 @@ function prefillHoy() {
   revObservaciones.value = "Hoy revisé el control de licencias.";
 }
 
+// ===================================================
+// FUNCIONES PARA VERSIONES
+// ===================================================
+
+async function cargarVersiones() {
+  try {
+    const response = await axios.post(
+      `${apiUrl}/licencias/versiones/obtener?page=${paginaActualVersiones.value}&per_page=${porPaginaVersiones}`,
+      {},
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    );
+    if (response.status === 200) {
+      const resultado = response.data.data;
+      versiones.value = resultado.versiones;
+      totalVersiones.value = resultado.total;
+      totalPaginasVersiones.value = resultado.total_pages;
+    }
+  } catch (error) {
+    console.error("Error cargando versiones:", error);
+  }
+}
+
+// Funciones de paginación versiones
+function irPaginaVersiones(pagina) {
+  if (pagina >= 1 && pagina <= totalPaginasVersiones.value) {
+    paginaActualVersiones.value = pagina;
+    cargarVersiones();
+  }
+}
+
+function paginaAnteriorVersiones() {
+  if (paginaActualVersiones.value > 1) {
+    paginaActualVersiones.value--;
+    cargarVersiones();
+  }
+}
+
+function paginaSiguienteVersiones() {
+  if (paginaActualVersiones.value < totalPaginasVersiones.value) {
+    paginaActualVersiones.value++;
+    cargarVersiones();
+  }
+}
+
+async function agregarVersion() {
+  if (!versionFecha.value || !versionNumero.value.trim() || !versionDescripcion.value.trim()) {
+    showToast("Por favor completa todos los campos de la versión.");
+    return;
+  }
+
+  try {
+    const response = await axios.post(
+      `${apiUrl}/licencias/versiones/crear`,
+      {
+        fecha: versionFecha.value,
+        version: versionNumero.value,
+        descripcion: versionDescripcion.value
+      },
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    );
+
+    if (response.status === 201) {
+      showToast("Versión guardada exitosamente.");
+      // Limpiar formulario
+      versionFecha.value = new Date().toISOString().slice(0, 10);
+      versionNumero.value = "";
+      versionDescripcion.value = "";
+      // Recargar versiones
+      paginaActualVersiones.value = 1; // Ir a primera página para ver la nueva
+      await cargarVersiones();
+    }
+  } catch (error) {
+    console.error("Error guardando versión:", error);
+    showToast("Error al guardar la versión.");
+  }
+}
+
+async function eliminarVersion(id) {
+  if (!confirm("¿Estás seguro de eliminar esta versión?")) return;
+
+  try {
+    const response = await axios.put(
+      `${apiUrl}/licencias/versiones/eliminar`,
+      {
+        version_id: id
+      },
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    );
+
+    if (response.status === 200) {
+      showToast("Versión eliminada.");
+      
+      // Si eliminamos el último registro de una página que no es la primera,
+      // volver a la página anterior
+      if (versiones.value.length === 1 && paginaActualVersiones.value > 1) {
+        paginaActualVersiones.value--;
+      }
+      
+      await cargarVersiones();
+    }
+  } catch (error) {
+    console.error("Error eliminando versión:", error);
+    showToast("Error al eliminar la versión.");
+  }
+}
+
 onMounted(() => {
   cargarCatalogos();
   cargarLicencias();
   cargarTiposRevision();
   cargarRevisiones();
+  cargarVersiones();
 });
 
 // ===================================================
