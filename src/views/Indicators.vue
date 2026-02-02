@@ -527,7 +527,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, defineProps, defineEmits, defineExpose } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import axios from 'axios'
 import apiUrl from "../../config.js"
 
