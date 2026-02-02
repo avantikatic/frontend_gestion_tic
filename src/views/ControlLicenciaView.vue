@@ -92,6 +92,7 @@
                 <option value="">Frecuencia (Todas)</option>
                 <option value="mensual">Mensual</option>
                 <option value="anual">Anual</option>
+                <option value="dosanios">2 Años</option>
               </select>
 
               <select v-model="fTipoServicio" class="dashSelect">
@@ -342,6 +343,7 @@
                   <select v-model="modalDraft.frecuencia" class="newInput">
                     <option value="mensual">Mensual</option>
                     <option value="anual">Anual</option>
+                    <option value="dosanios">2 Años</option>
                   </select>
                 </div>
               </div>
