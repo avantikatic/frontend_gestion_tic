@@ -375,9 +375,16 @@
               </div>
 
               <div class="newFormGroup">
+                <label class="newLabel">Tipo de moneda</label>
+                <select v-model="tipoMonedaSelect" class="newInput">
+                  <option value="">— Selecciona —</option>
+                  <option v-for="t in tiposMoneda" :key="t.id" :value="t.id">{{ t.codigo }} - {{ t.nombre }}</option>
+                </select>
+              </div>
+
+              <div class="newFormGroup">
                 <label class="newLabel">Valor</label>
                 <input v-model.number="modalDraft.valor" type="number" min="0" class="newInput" />
-                <p class="newHint">COP · prototipo sin formato.</p>
               </div>
 
               <div class="newFormGroup">
@@ -774,6 +781,7 @@ const proveedores = ref([]); // Array de objetos {id, nombre}
 const productos = ref([]); // Array de objetos {id, nombre}
 const tiposServicio = ref([]); // Array de objetos {id, nombre}
 const metodosPago = ref([]); // Array de objetos {id, nombre}
+const tiposMoneda = ref([]); // Array de objetos {id, codigo, nombre, simbolo}
 
 const licencias = ref([]); // Licencias de la página actual (paginado)
 
@@ -832,6 +840,7 @@ const tipoServicioSelect = ref("");
 const nuevoTipoServicio = ref("");
 const metodoPagoSelect = ref("");
 const nuevoMetodoPago = ref("");
+const tipoMonedaSelect = ref("");
 
 // Estados búsqueda de proveedor
 const proveedorBusqueda = ref("");
@@ -936,6 +945,17 @@ watch(metodoPagoSelect, (v) => {
   modalDraft.value.metodoPago = metodoPago?.nombre || "";
 });
 
+// Watchers para tipo de moneda
+watch(() => modalDraft.value?.tipoMonedaId, (v) => {
+  tipoMonedaSelect.value = v || "";
+});
+
+watch(tipoMonedaSelect, (v) => {
+  if (!modalDraft.value) return;
+  const tipoMonedaId = parseInt(v);
+  modalDraft.value.tipoMonedaId = tipoMonedaId || null;
+});
+
 // ===================================================
 // FUNCIONES PARA CARGAR DATOS DESDE EL BACKEND
 // ===================================================
@@ -992,6 +1012,19 @@ async function cargarCatalogos() {
     );
     if (resMet.status === 200) {
       metodosPago.value = resMet.data.data; // Guardar objetos completos {id, nombre}
+    }
+
+    const resMon = await axios.post(
+      `${apiUrl}/licencias/catalogos/tipos-moneda`,
+      {},
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    );
+    if (resMon.status === 200) {
+      tiposMoneda.value = resMon.data.data; // Guardar objetos completos {id, codigo, nombre, simbolo}
     }
   } catch (error) {
     console.error("Error cargando catálogos:", error);
@@ -1505,6 +1538,7 @@ function abrirEdicion(id) {
   productoSelect.value = modalDraft.value.productoId || "";
   tipoServicioSelect.value = modalDraft.value.tipoServicioId || "";
   metodoPagoSelect.value = modalDraft.value.metodoPagoId || "";
+  tipoMonedaSelect.value = modalDraft.value.tipoMonedaId || "";
   
   // Usar el historial que ya viene en los datos de la licencia
   historialLicencia.value = lic.historial || [];
@@ -1517,6 +1551,7 @@ function crearNuevaLicencia() {
   // Obtener el primer tipo de servicio (Licencia) por defecto
   const tipoLicenciaDefault = tiposServicio.value.find(t => t.nombre === "Licencia");
   const metodoPSEDefault = metodosPago.value.find(m => m.nombre === "Renovación PSE");
+  const tipoCOPDefault = tiposMoneda.value.find(m => m.codigo === "COP");
   
   modalDraft.value = {
     // No se envía ID, se genera automáticamente en el backend
@@ -1533,6 +1568,7 @@ function crearNuevaLicencia() {
     valor: 0,
     metodoPagoId: metodoPSEDefault?.id || null,
     metodoPago: metodoPSEDefault?.nombre || "",
+    tipoMonedaId: tipoCOPDefault?.id || null,
     responsable: { nombre: "Jeyson Martinez", cargo: "Coordinador TIC" },
     observaciones: "",
     baja: false,
@@ -1546,6 +1582,7 @@ function crearNuevaLicencia() {
   productoSelect.value = "";
   tipoServicioSelect.value = "";
   metodoPagoSelect.value = "";
+  tipoMonedaSelect.value = "";
 }
 
 function cerrarModal() {
@@ -1564,6 +1601,7 @@ function cerrarModal() {
   nuevoTipoServicio.value = "";
   metodoPagoSelect.value = "";
   nuevoMetodoPago.value = "";
+  tipoMonedaSelect.value = "";
 }
 
 
