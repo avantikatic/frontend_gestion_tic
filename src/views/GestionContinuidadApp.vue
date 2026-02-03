@@ -64,35 +64,17 @@
         </div>
 
         <div class="modules-list">
-          <div class="module-item" :class="{ active: moduloSeleccionado === 'SEG' }" @click="setModulo('SEG')">
-            <span class="module-dot module-dot-red"></span>
+          <div 
+            v-for="modulo in modulosGSC" 
+            :key="modulo.id" 
+            class="module-item" 
+            :class="{ active: moduloSeleccionado === modulo.codigo }" 
+            @click="setModulo(modulo.codigo)"
+          >
+            <span class="module-dot" :class="modulo.color_clase"></span>
             <div class="module-info-text">
-              <div class="module-title">Seguridad</div>
-              <div class="module-desc">Eventos SEG</div>
-            </div>
-          </div>
-
-          <div class="module-item" :class="{ active: moduloSeleccionado === 'DISP' }" @click="setModulo('DISP')">
-            <span class="module-dot module-dot-blue"></span>
-            <div class="module-info-text">
-              <div class="module-title">Disponibilidad</div>
-              <div class="module-desc">Servicios / SLA</div>
-            </div>
-          </div>
-
-          <div class="module-item" :class="{ active: moduloSeleccionado === 'MNT' }" @click="setModulo('MNT')">
-            <span class="module-dot module-dot-green"></span>
-            <div class="module-info-text">
-              <div class="module-title">Mantenimiento</div>
-              <div class="module-desc">Planificados / correctivos</div>
-            </div>
-          </div>
-
-          <div class="module-item" :class="{ active: moduloSeleccionado === 'DR' }" @click="setModulo('DR')">
-            <span class="module-dot module-dot-orange"></span>
-            <div class="module-info-text">
-              <div class="module-title">Simulacros</div>
-              <div class="module-desc">DR / Contingencia</div>
+              <div class="module-title">{{ modulo.nombre }}</div>
+              <div class="module-desc">{{ modulo.descripcion }}</div>
             </div>
           </div>
         </div>
@@ -132,7 +114,7 @@
             <button class="filter-tab" :class="{ active: filtroEstado === 'ANA' }" @click="filtroEstado='ANA'">En análisis</button>
             <button class="filter-tab" :class="{ active: filtroEstado === 'MIT' }" @click="filtroEstado='MIT'">Mitigado</button>
             <button class="filter-tab" :class="{ active: filtroEstado === 'CER' }" @click="filtroEstado='CER'">Cerrado</button>
-            <button class="filter-tab" :class="{ active: filtroEstado === 'SLA' }" @click="filtroEstado='SLA'">SLA afectado</button>
+            <!-- <button class="filter-tab" :class="{ active: filtroEstado === 'SLA' }" @click="filtroEstado='SLA'">SLA afectado</button> -->
           </div>
 
           <div class="filter-secondary">
@@ -222,10 +204,10 @@
               </p>
             </div>
           </div>
-          <div class="modal-header-right">
+          <!-- <div class="modal-header-right">
             <button class="modal-btn modal-btn-cancel" @click="cerrarModal">Cancelar</button>
             <button class="modal-btn modal-btn-save" @click="onGuardar">Guardar</button>
-          </div>
+          </div> -->
         </div>
 
         <!-- Body -->
@@ -240,10 +222,9 @@
               <div class="modal-field">
                 <label class="modal-label">Estado</label>
                 <select class="modal-input" v-model="draft.estado">
-                  <option>Abierto</option>
-                  <option>En análisis</option>
-                  <option>Mitigado</option>
-                  <option>Cerrado</option>
+                  <option v-for="estado in estadosGSC" :key="estado.id" :value="estado.nombre">
+                    {{ estado.nombre }}
+                  </option>
                 </select>
               </div>
               <div class="modal-field">
@@ -263,12 +244,30 @@
               <div class="modal-field modal-field-full">
                 <label class="modal-label">Sistemas Afectados</label>
                 <div class="modal-checkbox-group">
-                  <label class="modal-checkbox-item" v-for="s in SISTEMAS_CRITICOS" :key="s">
-                    <input type="checkbox" :value="s" v-model="draft.afectaSistemas" />
-                    <span>{{ s }}</span>
+                  <label class="modal-checkbox-item" v-for="sistema in sistemasAfectados" :key="sistema.id">
+                    <input type="checkbox" :value="sistema.nombre" v-model="draft.afectaSistemas" />
+                    <span>{{ sistema.nombre }}</span>
                   </label>
                 </div>
                 <p class="modal-field-hint">Marca los sistemas impactados. Si no aplica, deja en blanco.</p>
+              </div>
+              <div class="modal-field modal-field-full">
+                <label class="modal-label">Historial de estado</label>
+                <div class="modal-hitos">
+                  <div class="modal-hito">
+                    <span class="modal-hito-pill">Abierto</span>
+                    <span class="modal-hito-val">{{ draft.hitosEstado?.abiertoEn ? humanDate(draft.hitosEstado.abiertoEn) : "—" }}</span>
+                  </div>
+                  <div class="modal-hito">
+                    <span class="modal-hito-pill">Mitigado</span>
+                    <span class="modal-hito-val">{{ draft.hitosEstado?.mitigadoEn ? humanDate(draft.hitosEstado.mitigadoEn) : "—" }}</span>
+                  </div>
+                  <div class="modal-hito">
+                    <span class="modal-hito-pill">Cerrado</span>
+                    <span class="modal-hito-val">{{ draft.hitosEstado?.cerradoEn ? humanDate(draft.hitosEstado.cerradoEn) : "—" }}</span>
+                  </div>
+                </div>
+                <p class="modal-field-hint">Aún no hay cambios registrados. Se guardará automáticamente cuando cambies el estado.</p>
               </div>
             </div>
           </div>
@@ -484,9 +483,85 @@
 </template>
 
 <script setup>
-import { ref, watch, computed, reactive } from 'vue';
+import { ref, watch, computed, reactive, onMounted } from 'vue';
+import axios from 'axios';
+import apiUrl from "../../config.js";
 
 const LS_KEY = "avantika_gestion_continuidad_tic_v2";
+
+// Variables reactivas para datos desde BD
+const estadosGSC = ref([]);
+const sistemasAfectados = ref([]);
+const modulosGSC = ref([]);
+
+// Funciones para obtener datos desde la API
+const obtenerEstadosGSC = async () => {
+  try {
+    const response = await axios.post(
+      `${apiUrl}/gestion-continuidad/obtener_estados_gsc`, 
+      {},
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    );
+    if (response.status === 200) {
+      estadosGSC.value = response.data.data || [];
+    }
+  } catch (error) {
+    console.error('Error al obtener estados GSC:', error);
+  }
+};
+
+const obtenerSistemasAfectados = async () => {
+  try {
+    const response = await axios.post(
+      `${apiUrl}/gestion-continuidad/obtener_sistemas_afectados_gsc`, 
+      {},
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    );
+    if (response.status === 200) {
+      sistemasAfectados.value = response.data.data || [];
+    }
+  } catch (error) {
+    console.error('Error al obtener sistemas afectados GSC:', error);
+  }
+};
+
+const obtenerModulosGSC = async () => {
+  try {
+    const response = await axios.post(
+      `${apiUrl}/gestion-continuidad/obtener_modulos_gsc`, 
+      {},
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    );
+    if (response.status === 200) {
+      modulosGSC.value = response.data.data || [];
+      // Seleccionar el primer módulo automáticamente
+      if (modulosGSC.value.length > 0) {
+        moduloSeleccionado.value = modulosGSC.value[0].codigo;
+      }
+    }
+  } catch (error) {
+    console.error('Error al obtener módulos GSC:', error);
+  }
+};
+
+// Cargar datos al montar el componente
+onMounted(async () => {
+  await obtenerEstadosGSC();
+  await obtenerSistemasAfectados();
+  await obtenerModulosGSC();
+});
 
 const SISTEMAS_CRITICOS = [
   "DMS (ERP)",
@@ -536,7 +611,7 @@ watch(
 );
 
 // UI state
-const moduloSeleccionado = ref("DR");
+const moduloSeleccionado = ref("");
 const modalAbierta = ref(false);
 const modoModal = ref("crear");
 const draft = reactive({});
@@ -556,17 +631,13 @@ function setModulo(m) {
 }
 
 const moduloNombre = computed(() => {
-  if (moduloSeleccionado.value === "SEG") return "Seguridad (SEG)";
-  if (moduloSeleccionado.value === "DISP") return "Disponibilidad (DISP)";
-  if (moduloSeleccionado.value === "MNT") return "Mantenimientos (MNT)";
-  return "Simulacros DR (DR)";
+  const modulo = modulosGSC.value.find(m => m.codigo === moduloSeleccionado.value);
+  return modulo ? `${modulo.nombre} (${modulo.codigo})` : "";
 });
 
 const moduloDescripcion = computed(() => {
-  if (moduloSeleccionado.value === "SEG") return "Registra eventos de seguridad, acciones y evidencias.";
-  if (moduloSeleccionado.value === "DISP") return "Registra afectación de servicios, tiempos y SLA.";
-  if (moduloSeleccionado.value === "MNT") return "Registra mantenimientos con rango de fechas y riesgo.";
-  return "Registra simulacros con resultados, hallazgos y lecciones.";
+  const modulo = modulosGSC.value.find(m => m.codigo === moduloSeleccionado.value);
+  return modulo ? `Registra ${modulo.descripcion}` : "";
 });
 
 // KPIs
@@ -2188,6 +2259,42 @@ function removeEvidencia(idx) {
   width: 16px;
   height: 16px;
   cursor: pointer;
+}
+
+/* Hitos de estado */
+.modal-hitos {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.modal-hito {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  background: #f8fafc;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  flex: 1;
+  min-width: 150px;
+}
+
+.modal-hito-pill {
+  padding: 0.25rem 0.625rem;
+  background: #10b981;
+  color: #ffffff;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.modal-hito-val {
+  font-size: 12px;
+  color: #475569;
+  font-weight: 500;
 }
 
 /* Evidencias */
