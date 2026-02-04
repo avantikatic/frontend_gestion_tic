@@ -162,7 +162,7 @@
                 <td class="col-estado">
                   <div class="stacks">
                     <span class="status" :class="estadoFlujoClass(r)">{{ r.estado || "Abierto" }}</span>
-                    <span class="status mini" :class="evidenciaClass(r)">{{ evidenciaTexto(r) }}</span>
+                    <span v-if="evidenciaTexto(r)" class="status mini" :class="evidenciaClass(r)">{{ evidenciaTexto(r) }}</span>
                     <span v-if="r.modulo==='DISP' && r.slaAfectado" class="status mini bad">SLA afectado</span>
                   </div>
                 </td>
@@ -181,7 +181,7 @@
             <button class="pagination-btn" :disabled="page===1" @click="page--">‹</button>
             <div class="pinfo">
               Página <b>{{ page }}</b> de <b>{{ totalPages }}</b>
-              <span class="muted">({{ filteredRows.length }} registros)</span>
+              <span class="muted">({{ totalRegistros }} registros totales)</span>
             </div>
             <button class="pagination-btn" :disabled="page===totalPages" @click="page++">›</button>
             <button class="pagination-btn" :disabled="page===totalPages" @click="page=totalPages">»</button>
@@ -200,7 +200,7 @@
             <div class="modal-title-group">
               <h2 class="modal-title">{{ modoModal === 'editar' ? 'Editar registro' : 'Nuevo registro' }}</h2>
               <p class="modal-subtitle">
-                ID: <strong>{{ draft.id }}</strong> • {{ humanDate(draft.actualizadoEn || draft.creadoEn) }}
+                <span v-if="modoModal === 'editar'">ID: <strong>{{ draft.id }}</strong> • </span>{{ humanDate(draft.actualizadoEn || draft.creadoEn) }}
               </p>
             </div>
           </div>
@@ -709,6 +709,195 @@ const obtenerRiesgos = async () => {
   }
 };
 
+// Función para cargar contadores de KPIs (totales globales de todos los módulos)
+const cargarContadores = async () => {
+  try {
+    const response = await axios.post(
+      `${apiUrl}/gestion-continuidad/obtener_contadores_gsc`,
+      {}, // Sin filtro de módulo = totales globales
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    );
+
+    if (response.status === 200 && response.data.data) {
+      contadoresKPI.value = response.data.data;
+    }
+  } catch (error) {
+    console.error('Error al cargar contadores:', error);
+    contadoresKPI.value = {
+      total: 0,
+      abiertos: 0,
+      en_analisis: 0,
+      mitigados: 0,
+      cerrados: 0
+    };
+  }
+};
+
+// Función para cargar registros desde la API con filtros
+const cargarRegistros = async () => {
+  try {
+    // Encontrar el módulo actual
+    const modulo = modulosGSC.value.find(m => m.codigo === moduloSeleccionado.value);
+    if (!modulo) return;
+
+    // Encontrar el estado si hay filtro
+    let idEstado = null;
+    if (['ABI', 'ANA', 'MIT', 'CER'].includes(filtroEstado.value)) {
+      const codigoEstado = filtroEstado.value;
+      const nombreEstado = codigoEstado === 'ABI' ? 'Abierto' : 
+                           codigoEstado === 'ANA' ? 'En análisis' :
+                           codigoEstado === 'MIT' ? 'Mitigado' : 'Cerrado';
+      const estado = estadosGSC.value.find(e => e.nombre === nombreEstado);
+      if (estado) idEstado = estado.id;
+    }
+
+    // Construir filtros para el backend
+    const filtros = {
+      id_modulo: modulo.id,
+      limite: pageSize.value,
+      offset: (page.value - 1) * pageSize.value
+    };
+
+    if (idEstado) {
+      filtros.id_estado = idEstado;
+    }
+
+    if (q.value.trim()) {
+      filtros.q = q.value.trim();
+    }
+
+    const response = await axios.post(
+      `${apiUrl}/gestion-continuidad/listar_registros_gsc`,
+      filtros,
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    );
+    if (response.status === 200 && response.data.data) {
+      const data = response.data.data;
+      
+      // Actualizar metadatos de paginación
+      totalRegistros.value = data.total || 0;
+      totalPaginas.value = data.total_paginas || 1;
+
+      // Transformar los registros de la API al formato del componente
+      registros.value = (data.registros || []).map(reg => {
+        // Mapear los datos básicos
+        const modulo = modulosGSC.value.find(m => m.id === reg.id_modulo);
+        const estado = estadosGSC.value.find(e => e.id === reg.id_estado);
+        
+        const registroUI = {
+          id: reg.id, // El campo se llama 'id' en el modelo
+          id_registro: reg.id, // Mantener referencia
+          id_modulo: reg.id_modulo, // Guardar también el id_modulo
+          modulo: modulo ? modulo.codigo : 'SEG',
+          estado: estado ? estado.nombre : 'Abierto',
+          notificarGerencia: reg.notificar_gerencia,
+          descripcion: reg.descripcion || '',
+          resumen: reg.resumen || '',
+          creadoEn: reg.fecha_creacion,
+          actualizadoEn: reg.fecha_actualizacion || reg.fecha_creacion,
+          afectaSistemas: [],
+          evidencias: [],
+          evidencia: false, // Se actualizará si tiene evidencias
+          // Campos del backend para optimización
+          tiene_evidencias: reg.tiene_evidencias || false,
+          cantidad_evidencias: reg.cantidad_evidencias || 0,
+          cantidad_sistemas_afectados: reg.cantidad_sistemas_afectados || 0,
+          // Mapear historial de estados
+          hitosEstado: {
+            abiertoEn: reg.fecha_abierto || null,
+            enAnalisisEn: reg.fecha_en_analisis || null,
+            mitigadoEn: reg.fecha_mitigado || null,
+            cerradoEn: reg.fecha_cerrado || null
+          }
+        };
+
+        // Mapear sistemas afectados
+        if (Array.isArray(reg.sistemas_afectados)) {
+          registroUI.afectaSistemas = reg.sistemas_afectados.map(sistema => {
+            // El backend retorna objetos {id, nombre}
+            return sistema.nombre;
+          });
+        }
+
+        // Mapear evidencias
+        if (Array.isArray(reg.evidencias) && reg.evidencias.length > 0) {
+          registroUI.evidencias = reg.evidencias.map(ev => {
+            const tipo = tiposEvidencia.value.find(t => t.id === ev.id_tipo_evidencia);
+            return {
+              uid: `E-${ev.id_evidencia}`,
+              tipo: tipo ? tipo.nombre : '',
+              observacion: ev.observacion || '',
+              // Datos específicos según el tipo
+              ...ev.datos_especificos
+            };
+          });
+          registroUI.evidencia = true; // Marcar que tiene evidencias
+        }
+
+        // Mapear datos específicos del módulo
+        if (reg.datos_modulo) {
+          const dm = reg.datos_modulo;
+          
+          switch (registroUI.modulo) {
+            case 'SEG':
+              registroUI.fechaHora = dm.fecha_hora_incidente;
+              const fuente = fuentesSeguridad.value.find(f => f.id === dm.id_fuente_seguridad);
+              registroUI.fuente = fuente ? fuente.nombre : '';
+              registroUI.tipo = dm.tipo_amenaza || '';
+              const impacto = impactos.value.find(i => i.id === dm.id_impacto);
+              registroUI.impacto = impacto ? impacto.nombre : '';
+              registroUI.responsableTIC = dm.responsable_tic || '';
+              break;
+
+            case 'DISP':
+              registroUI.servicioAfectado = dm.servicio_afectado || '';
+              registroUI.tipoEvento = dm.tipo_evento || '';
+              registroUI.tiempoIndisponibleMin = dm.tiempo_indisponible_min || 0;
+              registroUI.slaAfectado = dm.sla_afectado || false;
+              registroUI.acciones = dm.acciones || '';
+              break;
+
+            case 'MNT':
+              registroUI.area = dm.area || '';
+              registroUI.tipo = dm.tipo_mantenimiento || '';
+              registroUI.fechaInicio = dm.fecha_inicio;
+              registroUI.fechaFin = dm.fecha_fin;
+              registroUI.requiereParada = dm.requiere_parada || false;
+              const riesgo = riesgos.value.find(r => r.id === dm.id_riesgo);
+              registroUI.riesgo = riesgo ? riesgo.nombre : '';
+              break;
+
+            case 'DR':
+              registroUI.escenario = dm.escenario || '';
+              registroUI.fechaInicio = dm.fecha_inicio;
+              registroUI.fechaFin = dm.fecha_fin;
+              registroUI.objetivo = dm.objetivo || '';
+              registroUI.resultado = dm.resultado || '';
+              registroUI.hallazgos = dm.hallazgos || '';
+              registroUI.leccionesAprendidas = dm.lecciones_aprendidas || '';
+              break;
+          }
+        }
+
+        return normalizeRecord(registroUI);
+      });
+    }
+  } catch (error) {
+    console.error('Error al cargar registros:', error);
+    registros.value = [];
+    totalRegistros.value = 0;
+    totalPaginas.value = 1;
+  }
+};
+
 // Cargar datos al montar el componente
 onMounted(async () => {
   await obtenerEstadosGSC();
@@ -719,6 +908,21 @@ onMounted(async () => {
   await obtenerFuentesSeguridad();
   await obtenerImpactos();
   await obtenerRiesgos();
+  
+  // Establecer el módulo inicial a SEG (Seguridad)
+  if (modulosGSC.value.length > 0) {
+    const moduloSeg = modulosGSC.value.find(m => m.codigo === 'SEG');
+    if (moduloSeg) {
+      moduloSeleccionado.value = moduloSeg.codigo;
+    } else {
+      // Si no encuentra SEG, usar el primer módulo
+      moduloSeleccionado.value = modulosGSC.value[0].codigo;
+    }
+  }
+  
+  // Cargar registros y contadores desde la API
+  await cargarRegistros();
+  await cargarContadores();
 });
 
 const SISTEMAS_CRITICOS = [
@@ -744,29 +948,36 @@ function nowLocalDatetime() {
   const pad = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
-function loadState() {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return { registros: [] };
-    const parsed = JSON.parse(raw);
-    if (!parsed || !Array.isArray(parsed.registros)) return { registros: [] };
-    return { registros: parsed.registros };
-  } catch {
-    return { registros: [] };
-  }
-}
-function saveState(state) {
-  localStorage.setItem(LS_KEY, JSON.stringify(state));
-}
 
-// Estado
-const registros = ref(loadState().registros);
+// FUNCIONES DE localStorage COMENTADAS - YA NO SE USAN
+// function loadState() {
+//   try {
+//     const raw = localStorage.getItem(LS_KEY);
+//     if (!raw) return { registros: [] };
+//     const parsed = JSON.parse(raw);
+//     if (!parsed || !Array.isArray(parsed.registros)) return { registros: [] };
+//     return { registros: parsed.registros };
+//   } catch {
+//     return { registros: [] };
+//   }
+// }
+// function saveState(state) {
+//   localStorage.setItem(LS_KEY, JSON.stringify(state));
+// }
 
-watch(
-  registros,
-  (val) => saveState({ registros: val }),
-  { deep: true }
-);
+// Estado - Registros y paginación del backend
+const registros = ref([]);
+const totalRegistros = ref(0);
+const totalPaginas = ref(1);
+
+// Contadores de KPIs por estado (vienen del backend)
+const contadoresKPI = ref({
+  total: 0,
+  abiertos: 0,
+  en_analisis: 0,
+  mitigados: 0,
+  cerrados: 0
+});
 
 // UI state
 const moduloSeleccionado = ref("");
@@ -778,8 +989,14 @@ const draft = reactive({});
 const q = ref("");
 const filtroEstado = ref("ALL");
 const page = ref(1);
-const pageSize = ref(10);
+const pageSize = ref(5); // Default 5 registros por página
 
+// Watch para recargar cuando cambien los filtros
+watch([moduloSeleccionado, q, filtroEstado, page, pageSize], () => {
+  cargarRegistros();
+});
+
+// Reset página cuando cambien filtros (no paginación)
 watch([moduloSeleccionado, q, filtroEstado, pageSize], () => {
   page.value = 1;
 });
@@ -808,10 +1025,11 @@ function estadoCode(st) {
   return "ABI";
 }
 
-const kpiTotal = computed(() => registros.value.length);
-const kpiAbiertos = computed(() => registros.value.filter(r => estadoCode(r?.estado) === "ABI").length);
-const kpiMitigados = computed(() => registros.value.filter(r => estadoCode(r?.estado) === "MIT").length);
-const kpiCerrados = computed(() => registros.value.filter(r => estadoCode(r?.estado) === "CER").length);
+// KPIs - Muestran totales GLOBALES de todos los módulos (SEG + DISP + MNT + DR)
+const kpiTotal = computed(() => contadoresKPI.value.total);
+const kpiAbiertos = computed(() => contadoresKPI.value.abiertos);
+const kpiMitigados = computed(() => contadoresKPI.value.mitigados);
+const kpiCerrados = computed(() => contadoresKPI.value.cerrados);
 
 // Normalización
 function normalizeRecord(r) {
@@ -890,22 +1108,296 @@ function crearRegistro(modulo) {
   modalAbierta.value = true;
 }
 
-function editarRegistro(id) {
-  const found = registros.value.find(r => r.id === id);
-  if (!found) return;
-  modoModal.value = "editar";
-  Object.keys(draft).forEach(k => delete draft[k]);
-  Object.assign(draft, JSON.parse(JSON.stringify(normalizeRecord(found))));
-  modalAbierta.value = true;
+async function editarRegistro(id) {
+  try {
+    // Buscar el id correcto
+    const registro = registros.value.find(r => r.id === id);
+    if (!registro || !registro.id) {
+      alert('No se encontró el registro');
+      return;
+    }
+
+    // Obtener registro completo desde la API
+    const response = await axios.post(
+      `${apiUrl}/gestion-continuidad/obtener_registro_gsc`,
+      { id_registro: registro.id },
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    );
+
+    if (response.status === 200 && response.data.data) {
+      const reg = response.data.data;
+      
+      // Mapear datos al formato del formulario (similar a cargarRegistros)
+      const modulo = modulosGSC.value.find(m => m.id === reg.id_modulo);
+      const estado = estadosGSC.value.find(e => e.id === reg.id_estado);
+      
+      const registroEdit = {
+        id: reg.id,
+        id_registro: reg.id,
+        modulo: modulo ? modulo.codigo : 'SEG',
+        estado: estado ? estado.nombre : 'Abierto',
+        notificarGerencia: reg.notificar_gerencia,
+        descripcion: reg.descripcion || '',
+        creadoEn: reg.fecha_creacion,
+        actualizadoEn: reg.fecha_actualizacion || reg.fecha_creacion,
+        afectaSistemas: [],
+        evidencias: [],
+        evidencia: false,
+        // Mapear historial de estados
+        hitosEstado: {
+          abiertoEn: reg.fecha_abierto || null,
+          enAnalisisEn: reg.fecha_en_analisis || null,
+          mitigadoEn: reg.fecha_mitigado || null,
+          cerradoEn: reg.fecha_cerrado || null
+        }
+      };
+
+      // Mapear sistemas afectados
+      if (Array.isArray(reg.sistemas_afectados)) {
+        registroEdit.afectaSistemas = reg.sistemas_afectados.map(sistema => {
+          // El backend retorna objetos {id, nombre}
+          return sistema.nombre;
+        });
+      }
+
+      // Mapear evidencias
+      if (Array.isArray(reg.evidencias) && reg.evidencias.length > 0) {
+        registroEdit.evidencias = reg.evidencias.map(ev => {
+          const tipo = tiposEvidencia.value.find(t => t.id === ev.id_tipo_evidencia);
+          const evidencia = {
+            uid: `E-${ev.id_evidencia}`,
+            tipo: tipo ? tipo.nombre : '',
+            observacion: ev.observacion || ''
+          };
+
+          // Mapear datos específicos según tipo
+          if (ev.datos_especificos) {
+            const ds = ev.datos_especificos;
+            
+            if (tipo?.nombre === 'Ticket') {
+              evidencia.ticketNumero = ds.numero_ticket || '';
+            } else if (tipo?.nombre === 'Correo') {
+              evidencia.correoAsunto = ds.asunto || '';
+              evidencia.correoRemitente = ds.remitente || '';
+            } else if (tipo?.nombre === 'Alerta (Plataforma)') {
+              const origen = origenesPlataforma.value.find(o => o.id === ds.id_origen_plataforma);
+              evidencia.origen = origen ? origen.nombre : '';
+              evidencia.alertaAsunto = ds.nombre_alerta || '';
+              evidencia.referencia = ds.codigo_alerta || '';
+            } else if (tipo?.nombre === 'Captura') {
+              evidencia.fileName = ds.nombre_archivo || '';
+              // Usar la URL del endpoint en lugar del base64
+              if (ds.imagen_url) {
+                evidencia.fileDataUrl = `${apiUrl}${ds.imagen_url}`;
+              } else {
+                evidencia.fileDataUrl = ds.archivo_base64 || '';
+              }
+            } else if (tipo?.nombre === 'Otro') {
+              evidencia.referencia = ds.referencia || '';
+            }
+          }
+
+          return evidencia;
+        });
+        registroEdit.evidencia = true;
+      }
+
+      // Mapear datos específicos del módulo
+      if (reg.datos_modulo) {
+        const dm = reg.datos_modulo;
+        
+        switch (registroEdit.modulo) {
+          case 'SEG':
+            registroEdit.fechaHora = dm.fecha_hora_incidente;
+            const fuente = fuentesSeguridad.value.find(f => f.id === dm.id_fuente_seguridad);
+            registroEdit.fuente = fuente ? fuente.nombre : '';
+            registroEdit.tipo = dm.tipo_amenaza || '';
+            const impacto = impactos.value.find(i => i.id === dm.id_impacto);
+            registroEdit.impacto = impacto ? impacto.nombre : '';
+            registroEdit.responsableTIC = dm.responsable_tic || '';
+            break;
+
+          case 'DISP':
+            registroEdit.servicioAfectado = dm.servicio_afectado || '';
+            registroEdit.tipoEvento = dm.tipo_evento || '';
+            registroEdit.tiempoIndisponibleMin = dm.tiempo_indisponible_min || 0;
+            registroEdit.slaAfectado = dm.sla_afectado || false;
+            registroEdit.acciones = dm.acciones || '';
+            break;
+
+          case 'MNT':
+            registroEdit.area = dm.area || '';
+            registroEdit.tipo = dm.tipo_mantenimiento || '';
+            registroEdit.fechaInicio = dm.fecha_inicio;
+            registroEdit.fechaFin = dm.fecha_fin;
+            registroEdit.requiereParada = dm.requiere_parada || false;
+            const riesgo = riesgos.value.find(r => r.id === dm.id_riesgo);
+            registroEdit.riesgo = riesgo ? riesgo.nombre : '';
+            break;
+
+          case 'DR':
+            registroEdit.escenario = dm.escenario || '';
+            registroEdit.fechaInicio = dm.fecha_inicio;
+            registroEdit.fechaFin = dm.fecha_fin;
+            registroEdit.objetivo = dm.objetivo || '';
+            registroEdit.resultado = dm.resultado || '';
+            registroEdit.hallazgos = dm.hallazgos || '';
+            registroEdit.leccionesAprendidas = dm.lecciones_aprendidas || '';
+            break;
+        }
+      }
+
+      // Cargar en el draft
+      modoModal.value = "editar";
+      Object.keys(draft).forEach(k => delete draft[k]);
+      Object.assign(draft, normalizeRecord(registroEdit));
+      modalAbierta.value = true;
+    }
+  } catch (error) {
+    console.error('Error cargando registro para editar:', error);
+    alert('Error al cargar el registro. Ver consola para detalles.');
+  }
 }
 
 function cerrarModal() {
   modalAbierta.value = false;
 }
 
-function onGuardar() {
+// Función auxiliar para construir el payload de evidencias
+function construirEvidenciasPayload(evidencias) {
+  if (!Array.isArray(evidencias) || evidencias.length === 0) {
+    return [];
+  }
+
+  return evidencias.map(ev => {
+    // Encontrar el ID del tipo de evidencia por nombre
+    const tipoEvidencia = tiposEvidencia.value.find(t => t.nombre === ev.tipo);
+    if (!tipoEvidencia) return null;
+
+    const evidenciaBase = {
+      id_tipo_evidencia: tipoEvidencia.id,
+      observacion: ev.observacion || '',
+      fecha_evidencia: new Date().toISOString(),
+      datos_especificos: {}
+    };
+
+    // Construir datos específicos según el tipo
+    switch (ev.tipo) {
+      case 'Ticket':
+        evidenciaBase.datos_especificos = {
+          numero_ticket: ev.ticketNumero || '',
+          plataforma: 'Sistema de Tickets',
+          url_ticket: ''
+        };
+        break;
+
+      case 'Correo':
+        evidenciaBase.datos_especificos = {
+          asunto: ev.correoAsunto || '',
+          remitente: ev.correoRemitente || '',
+          destinatarios: '',
+          fecha_envio: new Date().toISOString()
+        };
+        break;
+
+      case 'Alerta (Plataforma)':
+        const origenPlataforma = origenesPlataforma.value.find(o => o.nombre === ev.origen);
+        evidenciaBase.datos_especificos = {
+          id_origen_plataforma: origenPlataforma ? origenPlataforma.id : 1,
+          nombre_alerta: ev.alertaAsunto || '',
+          severidad: 'Media',
+          fecha_alerta: new Date().toISOString(),
+          codigo_alerta: ev.referencia || ''
+        };
+        break;
+
+      case 'Captura':
+        evidenciaBase.datos_especificos = {
+          nombre_archivo: ev.fileName || 'captura.png',
+          archivo_base64: ev.fileDataUrl || '',
+          tipo_mime: 'image/png',
+          tamano_bytes: ev.fileDataUrl ? ev.fileDataUrl.length : 0
+        };
+        break;
+
+      case 'Otro':
+        evidenciaBase.datos_especificos = {
+          descripcion_tipo: 'Evidencia adicional',
+          detalles: ev.observacion || '',
+          referencia: ev.referencia || ''
+        };
+        break;
+    }
+
+    return evidenciaBase;
+  }).filter(Boolean); // Eliminar nulls
+}
+
+// Función auxiliar para construir el payload de datos del módulo
+function construirDatosModuloPayload(draft) {
+  const datosModulo = {};
+
+  switch (draft.modulo) {
+    case 'SEG':
+      const fuenteSeguridad = fuentesSeguridad.value.find(f => f.nombre === draft.fuente);
+      const impacto = impactos.value.find(i => i.nombre === draft.impacto);
+      
+      datosModulo.fecha_hora_incidente = draft.fechaHora ? new Date(draft.fechaHora).toISOString() : new Date().toISOString();
+      datosModulo.id_fuente_seguridad = fuenteSeguridad ? fuenteSeguridad.id : 1;
+      datosModulo.tipo_amenaza = draft.tipo || '';
+      datosModulo.id_impacto = impacto ? impacto.id : 2; // Default: Medio
+      datosModulo.responsable_tic = draft.responsableTIC || '';
+      datosModulo.acciones_tomadas = draft.descripcion || '';
+      break;
+
+    case 'DISP':
+      datosModulo.servicio_afectado = draft.servicioAfectado || '';
+      datosModulo.tipo_evento = draft.tipoEvento || '';
+      datosModulo.tiempo_indisponible_min = draft.tiempoIndisponibleMin || 0;
+      datosModulo.sla_afectado = draft.slaAfectado || false;
+      datosModulo.acciones = draft.acciones || '';
+      datosModulo.causa_raiz = '';
+      break;
+
+    case 'MNT':
+      const riesgo = riesgos.value.find(r => r.nombre === draft.riesgo);
+      
+      datosModulo.area = draft.area || '';
+      datosModulo.tipo_mantenimiento = draft.tipo || '';
+      datosModulo.fecha_inicio = draft.fechaInicio ? new Date(draft.fechaInicio).toISOString() : new Date().toISOString();
+      datosModulo.fecha_fin = draft.fechaFin ? new Date(draft.fechaFin).toISOString() : new Date().toISOString();
+      datosModulo.requiere_parada = draft.requiereParada || false;
+      datosModulo.id_riesgo = riesgo ? riesgo.id : 3; // Default: Bajo
+      datosModulo.sistemas_componentes = '';
+      datosModulo.responsable_ejecucion = '';
+      break;
+
+    case 'DR':
+      datosModulo.escenario = draft.escenario || '';
+      datosModulo.fecha_inicio = draft.fechaInicio ? new Date(draft.fechaInicio).toISOString() : new Date().toISOString();
+      datosModulo.fecha_fin = draft.fechaFin ? new Date(draft.fechaFin).toISOString() : new Date().toISOString();
+      datosModulo.objetivo = draft.objetivo || '';
+      datosModulo.resultado = draft.resultado || '';
+      datosModulo.hallazgos = draft.hallazgos || '';
+      datosModulo.lecciones_aprendidas = draft.leccionesAprendidas || '';
+      datosModulo.rto_objetivo = null;
+      datosModulo.rto_real = null;
+      datosModulo.rpo_objetivo = null;
+      datosModulo.rpo_real = null;
+      break;
+  }
+
+  return datosModulo;
+}
+
+async function onGuardar() {
   if (!draft.estado) draft.estado = "Abierto";
 
+  // Validaciones básicas
   if (draft.modulo === "SEG") {
     if (!draft.fechaHora) return alert("En SEG la fecha/hora es obligatoria.");
   }
@@ -921,17 +1413,121 @@ function onGuardar() {
     }
   }
 
-  const copy = normalizeRecord({ ...draft, actualizadoEn: new Date().toISOString() });
-  const idx = registros.value.findIndex(r => r.id === copy.id);
-  if (idx === -1) registros.value.unshift(copy);
-  else registros.value.splice(idx, 1, copy);
-  cerrarModal();
+  try {
+    // Encontrar IDs de catálogos
+    const modulo = modulosGSC.value.find(m => m.codigo === draft.modulo);
+    const estado = estadosGSC.value.find(e => e.nombre === draft.estado);
+    
+    if (!modulo || !estado) {
+      return alert("Error: Módulo o estado no válido");
+    }
+
+    // Construir array de IDs de sistemas afectados
+    const sistemasAfectadosIds = [];
+    if (Array.isArray(draft.afectaSistemas)) {
+      draft.afectaSistemas.forEach(nombreSistema => {
+        const sistema = sistemasAfectados.value.find(s => s.nombre === nombreSistema);
+        if (sistema) {
+          sistemasAfectadosIds.push(sistema.id);
+        }
+      });
+    }
+
+    // Construir payload completo
+    const payload = {
+      id_modulo: modulo.id,
+      resumen: `Registro ${draft.modulo} - ${new Date().toLocaleString()}`,
+      descripcion: draft.descripcion || '',
+      id_estado: estado.id,
+      notificar_gerencia: draft.notificarGerencia || false,
+      sistemas_afectados: sistemasAfectadosIds,
+      evidencias: construirEvidenciasPayload(draft.evidencias || []),
+      datos_modulo: construirDatosModuloPayload(draft),
+      usuario_creacion: 'usuario' // TODO: Obtener usuario actual del sistema
+    };
+
+    // Si es edición, usar endpoint de actualización
+    if (modoModal.value === 'editar' && draft.id) {
+      const response = await axios.post(
+        `${apiUrl}/gestion-continuidad/actualizar_registro_gsc`,
+        {
+          id_registro: draft.id,
+          ...payload,
+          usuario_actualizacion: 'usuario'
+        },
+        {
+          headers: {
+            Accept: "application/json",
+          }
+        }
+      );
+
+      if (response.status === 200) {
+        alert('Registro actualizado exitosamente');
+        await cargarRegistros(); // Recargar lista desde la API
+        await cargarContadores(); // Recargar contadores KPI
+        cerrarModal();
+      }
+    } else {
+      // Crear nuevo registro
+      const response = await axios.post(
+        `${apiUrl}/gestion-continuidad/crear_registro_gsc`,
+        payload,
+        {
+          headers: {
+            Accept: "application/json",
+          }
+        }
+      );
+
+      if (response.status === 201) {
+        const idRegistro = response.data.data.id_registro;
+        alert(`Registro creado exitosamente con ID: ${idRegistro}`);
+        await cargarRegistros(); // Recargar lista desde la API
+        await cargarContadores(); // Recargar contadores KPI
+        cerrarModal();
+      }
+    }
+  } catch (error) {
+    console.error('Error guardando registro:', error);
+    alert('Error al guardar el registro. Ver consola para detalles.');
+  }
+
+  // MANTENER CÓDIGO ANTIGUO COMENTADO COMO RESPALDO
+  // const copy = normalizeRecord({ ...draft, actualizadoEn: new Date().toISOString() });
+  // const idx = registros.value.findIndex(r => r.id === copy.id);
+  // if (idx === -1) registros.value.unshift(copy);
+  // else registros.value.splice(idx, 1, copy);
+  // cerrarModal();
 }
 
-function eliminarRegistro(id) {
+async function eliminarRegistro(id_registro) {
   if (!confirm("¿Seguro que deseas eliminar este registro?")) return;
-  registros.value = registros.value.filter(r => r.id !== id);
-  cerrarModal();
+  
+  try {
+    const response = await axios.post(
+      `${apiUrl}/gestion-continuidad/eliminar_registro_gsc`,
+      { id_registro },
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    );
+
+    if (response.status === 200) {
+      alert('Registro eliminado exitosamente');
+      await cargarRegistros(); // Recargar lista
+      await cargarContadores(); // Recargar contadores KPI
+      cerrarModal();
+    }
+  } catch (error) {
+    console.error('Error eliminando registro:', error);
+    alert('Error al eliminar el registro. Ver consola para detalles.');
+  }
+
+  // MANTENER CÓDIGO ANTIGUO COMENTADO COMO RESPALDO
+  // registros.value = registros.value.filter(r => r.id !== id);
 }
 
 function exportarJSON() {
@@ -947,43 +1543,90 @@ function exportarJSON() {
   URL.revokeObjectURL(url);
 }
 
-function limpiarTodo() {
-  if (!confirm("¿Seguro que deseas eliminar TODOS los registros?")) return;
-  registros.value = [];
-  cerrarModal();
-  localStorage.removeItem(LS_KEY);
-}
+// FUNCIÓN COMENTADA - YA NO SE USA localStorage
+// function limpiarTodo() {
+//   if (!confirm("¿Seguro que deseas eliminar TODOS los registros?")) return;
+//   registros.value = [];
+//   cerrarModal();
+//   localStorage.removeItem(LS_KEY);
+// }
 
 // Helpers tabla
 function fechaResumen(r) {
-  const pick = (v) => (v ? String(v).replace("T", " ") : "");
-  if (r.modulo === "SEG") return pick(r.fechaHora) || "—";
-  if (r.modulo === "MNT" || r.modulo === "DR") {
+  const pick = (v) => {
+    if (!v) return "";
+    const date = new Date(v);
+    if (isNaN(date.getTime())) return "";
+    return date.toLocaleString('es-CO', { 
+      year: 'numeric', 
+      month: '2-digit', 
+      day: '2-digit', 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  };
+  
+  if (r.modulo === "SEG" && r.fechaHora) return pick(r.fechaHora);
+  if ((r.modulo === "MNT" || r.modulo === "DR") && r.fechaInicio) {
     const a = pick(r.fechaInicio);
     const b = pick(r.fechaFin);
-    return a && b ? `${a} → ${b}` : "—";
+    return a && b ? `${a} → ${b}` : a || "—";
   }
-  const d = new Date(r.actualizadoEn || r.creadoEn || 0);
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString();
+  // Para otros casos, mostrar fecha de creación
+  return pick(r.creadoEn) || pick(r.actualizadoEn) || "—";
 }
 
 function resumenRegistro(r) {
-  if (r.modulo === "SEG") return `${r.fuente || "—"} · ${r.tipo || "—"} · ${r.descripcion || "—"}`.trim();
-  if (r.modulo === "DISP") return `${r.servicioAfectado || "—"} · ${r.tipoEvento || "—"} · ${r.acciones || "—"}`.trim();
-  if (r.modulo === "MNT") return `${r.area || "—"} · ${r.tipo || "—"} · Riesgo: ${r.riesgo || "—"}`.trim();
-  return `${r.escenario || "—"} · ${r.resultado || "—"}`.trim();
+  // Limpiar texto de caracteres raros
+  const limpiar = (texto) => {
+    if (!texto) return "—";
+    return String(texto).replace(/[\u0000-\u001F\u007F-\u009F]/g, '').trim() || "—";
+  };
+  
+  // Si tiene resumen del backend, usarlo primero
+  if (r.resumen) {
+    const resumenLimpio = limpiar(r.resumen);
+    if (resumenLimpio !== "—") return resumenLimpio;
+  }
+  
+  // Si no, construir según módulo
+  if (r.modulo === "SEG") {
+    const partes = [limpiar(r.fuente), limpiar(r.tipo), limpiar(r.descripcion)];
+    return partes.filter(p => p !== "—").join(" · ") || "Sin descripción";
+  }
+  if (r.modulo === "DISP") {
+    const partes = [limpiar(r.servicioAfectado), limpiar(r.tipoEvento)];
+    return partes.filter(p => p !== "—").join(" · ") || "Sin descripción";
+  }
+  if (r.modulo === "MNT") {
+    const partes = [limpiar(r.area), limpiar(r.tipo), `Riesgo: ${limpiar(r.riesgo)}`];
+    return partes.filter(p => p !== "—" && p !== "Riesgo: —").join(" · ") || "Sin descripción";
+  }
+  if (r.modulo === "DR") {
+    const partes = [limpiar(r.escenario), limpiar(r.resultado)];
+    return partes.filter(p => p !== "—").join(" · ") || "Sin descripción";
+  }
+  return "Sin descripción";
 }
 
 function evidenciaTexto(r) {
+  // Usar el campo del backend si está disponible
+  if (r.tiene_evidencias !== undefined) {
+    return r.tiene_evidencias ? null : "Pendiente evidencias";
+  }
+  // Fallback para compatibilidad
   const n = Array.isArray(r.evidencias) ? r.evidencias.length : 0;
-  if (n > 0) return `Evidencias: ${n}`;
-  return r.evidencia ? "Evidencia marcada" : "Pendiente evidencias";
+  return n > 0 ? null : "Pendiente evidencias";
 }
 
 function evidenciaClass(r) {
+  // Usar el campo del backend si está disponible
+  if (r.tiene_evidencias !== undefined) {
+    return r.tiene_evidencias ? "ok" : "warn";
+  }
+  // Fallback para compatibilidad
   const n = Array.isArray(r.evidencias) ? r.evidencias.length : 0;
-  if (n > 0) return "ok";
-  return "warn";
+  return n > 0 ? "ok" : "warn";
 }
 
 function estadoFlujoClass(r) {
@@ -1011,40 +1654,30 @@ function haystack(r) {
   return parts.join(" ").toLowerCase();
 }
 
-// Filtrado
+// Filtrado - SIMPLIFICADO: backend ya filtra por módulo, estado y búsqueda
 const baseRows = computed(() => {
-  return [...registros.value]
-    .map(normalizeRecord)
-    .filter(r => r?.modulo === moduloSeleccionado.value)
-    .sort((a,b) => new Date(b.actualizadoEn || b.creadoEn || 0) - new Date(a.actualizadoEn || a.creadoEn || 0));
+  return [...registros.value].map(normalizeRecord);
+  // El orden viene del backend (por ID descendente)
 });
 
 const filteredRows = computed(() => {
-  const term = q.value.trim().toLowerCase();
-  
+  // Filtros especiales de frontend que no están en el backend
   return baseRows.value.filter(r => {
-    const code = estadoCode(r.estado);
-    
-    if (["ABI","ANA","MIT","CER"].includes(filtroEstado.value) && filtroEstado.value !== code) return false;
+    // Filtro SLA (solo para DISP)
     if (filtroEstado.value === "SLA" && !(r.modulo === "DISP" && r.slaAfectado)) return false;
     
+    // Filtros de evidencias
     const evCount = Array.isArray(r.evidencias) ? r.evidencias.length : 0;
     if (filtroEstado.value === "EVI" && evCount === 0) return false;
     if (filtroEstado.value === "PEN" && evCount > 0) return false;
     
-    if (!term) return true;
-    return haystack(r).includes(term);
+    return true;
   });
 });
 
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredRows.value.length / pageSize.value)));
+const totalPages = computed(() => totalPaginas.value);
 
-const pageRows = computed(() => {
-  const p = Math.min(page.value, totalPages.value);
-  const start = (p - 1) * pageSize.value;
-  const end = start + pageSize.value;
-  return filteredRows.value.slice(start, end);
-});
+const pageRows = computed(() => filteredRows.value);
 
 // Modal helpers
 const chipClass = computed(() => {
