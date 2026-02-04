@@ -297,16 +297,67 @@
                   <div class="modal-field">
                     <label class="modal-label">Tipo</label>
                     <select class="modal-input" v-model="ev.tipo">
-                      <option>Ticket</option>
-                      <option>Correo</option>
-                      <option>Alerta (Plataforma)</option>
-                      <option>Captura</option>
-                      <option>Otro</option>
+                      <option v-for="tipo in tiposEvidencia" :key="tipo.id" :value="tipo.nombre">
+                        {{ tipo.nombre }}
+                      </option>
                     </select>
                   </div>
-                  <div class="modal-field modal-field-span2">
+
+                  <div class="modal-field" v-if="ev.tipo==='Alerta (Plataforma)'">
+                    <label class="modal-label">Origen (Plataforma)</label>
+                    <select class="modal-input" v-model="ev.origen">
+                      <option v-for="origen in origenesPlataforma" :key="origen.id" :value="origen.nombre">
+                        {{ origen.nombre }}
+                      </option>
+                    </select>
+                  </div>
+
+                  <div class="modal-field" v-if="ev.tipo==='Ticket'">
+                    <label class="modal-label">Número de ticket</label>
+                    <input class="modal-input" v-model="ev.ticketNumero" placeholder="Ej: INC-10452 / SD-8891 / Case #..." />
+                  </div>
+
+                  <template v-if="ev.tipo==='Correo'">
+                    <div class="modal-field modal-field-span2">
+                      <label class="modal-label">Asunto del correo</label>
+                      <input class="modal-input" v-model="ev.correoAsunto" placeholder="Ej: Notificación / Soporte..." />
+                    </div>
+                    <div class="modal-field">
+                      <label class="modal-label">Remitente</label>
+                      <input class="modal-input" v-model="ev.correoRemitente" placeholder="Ej: soporte@... / Nombre <correo@...>" />
+                    </div>
+                  </template>
+
+                  <template v-if="ev.tipo==='Alerta (Plataforma)'">
+                    <div class="modal-field modal-field-span2">
+                      <label class="modal-label">Asunto / Título</label>
+                      <input class="modal-input" v-model="ev.alertaAsunto" placeholder="Ej: Malware detected / URL blocked..." />
+                    </div>
+                    <div class="modal-field modal-field-span2">
+                      <label class="modal-label">Detalle / Referencia</label>
+                      <input class="modal-input" v-model="ev.referencia" placeholder="Ej: ID evento, política, host, regla..." />
+                    </div>
+                  </template>
+
+                  <template v-if="ev.tipo==='Captura'">
+                    <div class="modal-field modal-field-span3">
+                      <label class="modal-label">Adjuntar captura (imagen)</label>
+                      <input class="modal-input" type="file" accept="image/*" @change="onFile($event, ev)" />
+                      <div class="modal-field-hint">Se guarda en localStorage (base64). Evita imágenes muy pesadas (≤ 1.5MB).</div>
+
+                      <div v-if="ev.fileName || ev.fileDataUrl" class="modal-file-box">
+                        <div class="modal-file-row">
+                          <strong>{{ ev.fileName || "captura" }}</strong>
+                          <button class="modal-btn modal-btn-delete" @click="clearFile(ev)">Quitar</button>
+                        </div>
+                        <img v-if="ev.fileDataUrl" class="modal-file-preview" :src="ev.fileDataUrl" alt="captura" />
+                      </div>
+                    </div>
+                  </template>
+
+                  <div class="modal-field modal-field-span3">
                     <label class="modal-label">Observación</label>
-                    <textarea class="modal-input modal-textarea" rows="2" v-model="ev.observacion" placeholder="Describe la evidencia..."></textarea>
+                    <textarea class="modal-input modal-textarea" rows="2" v-model="ev.observacion" placeholder="Describe la evidencia (qué prueba, dónde está, quién la envió, etc.)."></textarea>
                   </div>
                 </div>
               </div>
@@ -327,17 +378,17 @@
               <div class="modal-field">
                 <label class="modal-label">Fuente</label>
                 <select class="modal-input" v-model="draft.fuente">
-                  <option>Fortinet</option>
-                  <option>Kaspersky</option>
-                  <option>Microsoft 365</option>
-                  <option>Usuario</option>
-                  <option>Otro</option>
+                  <option v-for="fuente in fuentesSeguridad" :key="fuente.id" :value="fuente.nombre">
+                    {{ fuente.nombre }}
+                  </option>
                 </select>
               </div>
               <div class="modal-field">
                 <label class="modal-label">Impacto</label>
                 <select class="modal-input" v-model="draft.impacto">
-                  <option>Alto</option><option>Medio</option><option>Bajo</option>
+                  <option v-for="impacto in impactos" :key="impacto.id" :value="impacto.nombre">
+                    {{ impacto.nombre }}
+                  </option>
                 </select>
               </div>
               <div class="modal-field modal-field-full">
@@ -414,7 +465,9 @@
               <div class="modal-field">
                 <label class="modal-label">Riesgo</label>
                 <select class="modal-input" v-model="draft.riesgo">
-                  <option>Alto</option><option>Medio</option><option>Bajo</option>
+                  <option v-for="riesgo in riesgos" :key="riesgo.id" :value="riesgo.nombre">
+                    {{ riesgo.nombre }}
+                  </option>
                 </select>
               </div>
               <div class="modal-field modal-field-full">
@@ -493,6 +546,11 @@ const LS_KEY = "avantika_gestion_continuidad_tic_v2";
 const estadosGSC = ref([]);
 const sistemasAfectados = ref([]);
 const modulosGSC = ref([]);
+const tiposEvidencia = ref([]);
+const origenesPlataforma = ref([]);
+const fuentesSeguridad = ref([]);
+const impactos = ref([]);
+const riesgos = ref([]);
 
 // Funciones para obtener datos desde la API
 const obtenerEstadosGSC = async () => {
@@ -556,11 +614,111 @@ const obtenerModulosGSC = async () => {
   }
 };
 
+const obtenerTiposEvidencia = async () => {
+  try {
+    const response = await axios.post(
+      `${apiUrl}/gestion-continuidad/obtener_tipos_evidencia_gsc`, 
+      {},
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    );
+    if (response.status === 200) {
+      tiposEvidencia.value = response.data.data || [];
+    }
+  } catch (error) {
+    console.error('Error al obtener tipos de evidencia:', error);
+  }
+};
+
+const obtenerOrigenesPlataforma = async () => {
+  try {
+    const response = await axios.post(
+      `${apiUrl}/gestion-continuidad/obtener_origenes_plataforma_gsc`, 
+      {},
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    );
+    if (response.status === 200) {
+      origenesPlataforma.value = response.data.data || [];
+    }
+  } catch (error) {
+    console.error('Error al obtener orígenes de plataforma:', error);
+  }
+};
+
+const obtenerFuentesSeguridad = async () => {
+  try {
+    const response = await axios.post(
+      `${apiUrl}/gestion-continuidad/obtener_fuentes_seguridad_gsc`, 
+      {},
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    );
+    if (response.status === 200) {
+      fuentesSeguridad.value = response.data.data || [];
+    }
+  } catch (error) {
+    console.error('Error al obtener fuentes de seguridad:', error);
+  }
+};
+
+const obtenerImpactos = async () => {
+  try {
+    const response = await axios.post(
+      `${apiUrl}/gestion-continuidad/obtener_impactos_gsc`, 
+      {},
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    );
+    if (response.status === 200) {
+      impactos.value = response.data.data || [];
+    }
+  } catch (error) {
+    console.error('Error al obtener impactos:', error);
+  }
+};
+
+const obtenerRiesgos = async () => {
+  try {
+    const response = await axios.post(
+      `${apiUrl}/gestion-continuidad/obtener_riesgos_gsc`, 
+      {},
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    );
+    if (response.status === 200) {
+      riesgos.value = response.data.data || [];
+    }
+  } catch (error) {
+    console.error('Error al obtener riesgos:', error);
+  }
+};
+
 // Cargar datos al montar el componente
 onMounted(async () => {
   await obtenerEstadosGSC();
   await obtenerSistemasAfectados();
   await obtenerModulosGSC();
+  await obtenerTiposEvidencia();
+  await obtenerOrigenesPlataforma();
+  await obtenerFuentesSeguridad();
+  await obtenerImpactos();
+  await obtenerRiesgos();
 });
 
 const SISTEMAS_CRITICOS = [
@@ -905,15 +1063,41 @@ function humanDate(iso) {
 
 function addEvidencia() {
   if (!draft.evidencias) draft.evidencias = [];
+  // Usar el primer tipo de evidencia de la BD, o "Ticket" por defecto
+  const tipoInicial = tiposEvidencia.value.length > 0 ? tiposEvidencia.value[0].nombre : "Ticket";
   draft.evidencias.push({
     uid: uidMini(),
-    tipo: "Ticket",
+    tipo: tipoInicial,
     observacion: ""
   });
 }
 
 function removeEvidencia(idx) {
   draft.evidencias.splice(idx, 1);
+}
+
+function onFile(e, ev) {
+  const file = e?.target?.files?.[0];
+  if (!file) return;
+
+  const max = 1.5 * 1024 * 1024;
+  if (file.size > max) {
+    alert("La imagen es muy pesada para guardar en localStorage. Usa una captura más liviana (≤ 1.5MB).");
+    e.target.value = "";
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    ev.fileName = file.name;
+    ev.fileDataUrl = String(reader.result || "");
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearFile(ev) {
+  ev.fileName = "";
+  ev.fileDataUrl = "";
 }
 
 </script>
@@ -2485,5 +2669,46 @@ function removeEvidencia(idx) {
     flex: 1;
     justify-content: center;
   }
+}
+
+/* Estilos para campos condicionales de evidencias */
+.modal-field-hint {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.modal-file-box {
+  margin-top: 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  background: #f9fafb;
+}
+
+.modal-file-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.modal-file-preview {
+  margin-top: 0.75rem;
+  width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+  border-radius: 0.75rem;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+}
+
+.modal-field-span2 {
+  grid-column: span 2;
+}
+
+.modal-field-span3 {
+  grid-column: span 3;
 }
 </style>
