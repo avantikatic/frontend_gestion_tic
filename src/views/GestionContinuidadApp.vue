@@ -241,6 +241,42 @@
                   <span>SI si existe soporte verificable</span>
                 </label>
               </div>
+              <div class="modal-field">
+                <label class="modal-label">Enviar a contactos de empresa</label>
+                <label class="modal-checkbox">
+                  <input type="checkbox" v-model="draft.enviarContactosEmpresa" />
+                  <span>SI/NO (Con copia)</span>
+                </label>
+              </div>
+              
+              <!-- Campo condicional para agregar correos CC -->
+              <div class="modal-field modal-field-full" v-if="draft.enviarContactosEmpresa">
+                <label class="modal-label">Correos electrónicos (CC)</label>
+                <div class="email-input-container">
+                  <input 
+                    class="modal-input" 
+                    v-model="nuevoCorreo" 
+                    @keyup.enter="agregarCorreo"
+                    placeholder="Escribe un correo y presiona Enter o clic en Agregar"
+                    type="email"
+                    style="flex: 1; margin-right: 8px;"
+                  />
+                  <button class="modal-btn modal-btn-add" @click="agregarCorreo" style="white-space: nowrap;">+ Agregar</button>
+                </div>
+                
+                <div class="email-chips" v-if="draft.correosCC && draft.correosCC.length > 0" style="margin-top: 12px;">
+                  <div class="email-chip" v-for="(correo, idx) in draft.correosCC" :key="idx">
+                    <span>{{ correo }}</span>
+                    <button class="chip-remove" @click="quitarCorreo(idx)" title="Quitar correo">×</button>
+                  </div>
+                </div>
+                
+                <p class="modal-field-hint" style="margin-top: 8px;">
+                  Estos correos recibirán una copia (CC) cuando se envíe la notificación a gerencia. 
+                  <strong>Importante:</strong> Solo se enviarán si "Notificar a Gerencia" también está marcado.
+                </p>
+              </div>
+              
               <div class="modal-field modal-field-full">
                 <label class="modal-label">Sistemas Afectados</label>
                 <div class="modal-checkbox-group">
@@ -454,6 +490,10 @@
                 <label class="modal-label">Tipo</label>
                 <input class="modal-input" v-model="draft.tipo" placeholder="Ej: parchado, upgrade firmware..." />
               </div>
+              <div class="modal-field modal-field-full">
+                <label class="modal-label">Descripción</label>
+                <textarea class="modal-input modal-textarea" rows="3" v-model="draft.descripcion" placeholder="Describe el mantenimiento, alcance, impacto esperado..."></textarea>
+              </div>
               <div class="modal-field">
                 <label class="modal-label">Fecha inicio</label>
                 <input class="modal-input" type="datetime-local" v-model="draft.fechaInicio" />
@@ -471,7 +511,7 @@
                 </select>
               </div>
               <div class="modal-field modal-field-full">
-                <label class="modal-label">Requiere parada</label>
+                <label class="modal-label">Interrupción del Servicio</label>
                 <label class="modal-checkbox">
                   <input type="checkbox" v-model="draft.requiereParada" />
                   <span>SI/NO</span>
@@ -868,6 +908,7 @@ const cargarRegistros = async () => {
             case 'MNT':
               registroUI.area = dm.area || '';
               registroUI.tipo = dm.tipo_mantenimiento || '';
+              registroUI.descripcion = dm.descripcion || '';
               registroUI.fechaInicio = dm.fecha_inicio;
               registroUI.fechaFin = dm.fecha_fin;
               registroUI.requiereParada = dm.requiere_parada || false;
@@ -991,6 +1032,9 @@ const filtroEstado = ref("ALL");
 const page = ref(1);
 const pageSize = ref(5); // Default 5 registros por página
 
+// Variable para campo de entrada de correos CC
+const nuevoCorreo = ref("");
+
 // Watch para recargar cuando cambien los filtros
 watch([moduloSeleccionado, q, filtroEstado, page, pageSize], () => {
   cargarRegistros();
@@ -1036,10 +1080,46 @@ function normalizeRecord(r) {
   const x = { ...r };
   if (!x.estado) x.estado = "Abierto";
   if (x.notificarGerencia === undefined) x.notificarGerencia = false;
+  if (x.enviarContactosEmpresa === undefined) x.enviarContactosEmpresa = false;
   if (!Array.isArray(x.evidencias)) x.evidencias = [];
   if (!Array.isArray(x.afectaSistemas)) x.afectaSistemas = [];
+  if (!Array.isArray(x.correosCC)) x.correosCC = [];
   if (x.evidencia === undefined) x.evidencia = false;
   return x;
+}
+
+// Funciones para manejo de correos CC
+function agregarCorreo() {
+  const correo = nuevoCorreo.value.trim();
+  if (!correo) {
+    return;
+  }
+  
+  // Validación básica de formato de correo
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(correo)) {
+    alert('Por favor ingresa un correo electrónico válido');
+    return;
+  }
+  
+  // Verificar que no esté duplicado
+  if (!Array.isArray(draft.correosCC)) {
+    draft.correosCC = [];
+  }
+  
+  if (draft.correosCC.includes(correo)) {
+    alert('Este correo ya está en la lista');
+    return;
+  }
+  
+  draft.correosCC.push(correo);
+  nuevoCorreo.value = '';
+}
+
+function quitarCorreo(index) {
+  if (Array.isArray(draft.correosCC)) {
+    draft.correosCC.splice(index, 1);
+  }
 }
 
 // Crear registro
@@ -1083,6 +1163,7 @@ function crearRegistro(modulo) {
       ...base,
       area: "",
       tipo: "",
+      descripcion: "",
       fechaInicio: now,
       fechaFin: now,
       requiereParada: false,
@@ -1232,6 +1313,7 @@ async function editarRegistro(id) {
           case 'MNT':
             registroEdit.area = dm.area || '';
             registroEdit.tipo = dm.tipo_mantenimiento || '';
+            registroEdit.descripcion = dm.descripcion || '';
             registroEdit.fechaInicio = dm.fecha_inicio;
             registroEdit.fechaFin = dm.fecha_fin;
             registroEdit.requiereParada = dm.requiere_parada || false;
@@ -1265,6 +1347,7 @@ async function editarRegistro(id) {
 
 function cerrarModal() {
   modalAbierta.value = false;
+  nuevoCorreo.value = ''; // Limpiar campo de correo
 }
 
 // Función auxiliar para construir el payload de evidencias
@@ -1368,6 +1451,7 @@ function construirDatosModuloPayload(draft) {
       
       datosModulo.area = draft.area || '';
       datosModulo.tipo_mantenimiento = draft.tipo || '';
+      datosModulo.descripcion = draft.descripcion || '';
       datosModulo.fecha_inicio = draft.fechaInicio ? new Date(draft.fechaInicio).toISOString() : new Date().toISOString();
       datosModulo.fecha_fin = draft.fechaFin ? new Date(draft.fechaFin).toISOString() : new Date().toISOString();
       datosModulo.requiere_parada = draft.requiereParada || false;
@@ -1440,6 +1524,8 @@ async function onGuardar() {
       descripcion: draft.descripcion || '',
       id_estado: estado.id,
       notificar_gerencia: draft.notificarGerencia || false,
+      enviar_contactos_empresa: draft.enviarContactosEmpresa || false,
+      correos_cc: draft.correosCC || [],  // Array de correos
       sistemas_afectados: sistemasAfectadosIds,
       evidencias: construirEvidenciasPayload(draft.evidencias || []),
       datos_modulo: construirDatosModuloPayload(draft),
@@ -3343,5 +3429,68 @@ function clearFile(ev) {
 
 .modal-field-span3 {
   grid-column: span 3;
+}
+
+/* Estilos para el campo de correos electrónicos CC */
+.email-input-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.email-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  min-height: 48px;
+}
+
+.email-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.email-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.chip-remove {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  font-size: 1rem;
+  font-weight: bold;
+  line-height: 1;
+  transition: all 0.2s ease;
+}
+
+.chip-remove:hover {
+  background: rgba(255, 255, 255, 0.4);
+  transform: scale(1.1);
+}
+
+.chip-remove:active {
+  transform: scale(0.95);
 }
 </style>
