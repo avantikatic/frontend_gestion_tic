@@ -558,6 +558,53 @@
               </div>
             </div>
           </div>
+
+          <!-- SECCIÓN DE RESULTADOS (BITÁCORA) -->
+          <div class="modal-section">
+            <div class="modal-section-header">
+              <h3 class="modal-section-title">Resultados (Bitácora)</h3>
+              <p class="modal-section-desc">Registro histórico de acciones y resultados</p>
+            </div>
+            
+            <!-- Lista de resultados existentes -->
+            <div v-if="resultadosRegistro.length > 0" class="resultados-lista" style="margin-bottom: 1rem;">
+              <div 
+                v-for="resultado in resultadosRegistro" 
+                :key="resultado.id"
+                class="resultado-item"
+                style="background: #f8f9fa; padding: 1rem; border-radius: 6px; margin-bottom: 0.75rem; border-left: 4px solid #5a9e7a;"
+              >
+                <div style="font-size: 0.85rem; color: #6c757d; margin-bottom: 0.5rem;">
+                  {{ formatearFecha(resultado.created_at) }}
+                </div>
+                <div style="white-space: pre-wrap; line-height: 1.5;">{{ resultado.texto }}</div>
+              </div>
+            </div>
+
+            <!-- Formulario para agregar nuevo resultado -->
+            <div class="agregar-resultado">
+              <label class="modal-label">{{ resultadosRegistro.length === 0 ? 'Agregar primer resultado' : 'Agregar nuevo resultado' }}</label>
+              <textarea 
+                class="modal-input modal-textarea" 
+                rows="4" 
+                v-model="nuevoResultadoTexto" 
+                placeholder="Escribe aquí el resultado o acción realizada..."
+                style="margin-bottom: 0.5rem;"
+              ></textarea>
+              <button 
+                v-if="modoModal === 'editar'"
+                class="modal-btn modal-btn-save" 
+                @click="agregarResultado"
+                :disabled="!nuevoResultadoTexto.trim()"
+                style="width: auto;"
+              >
+                Agregar Resultado
+              </button>
+              <p v-if="modoModal === 'crear'" class="modal-field-hint" style="margin-top: 8px;">
+                El resultado se guardará automáticamente cuando crees el registro usando el botón "Guardar" del pie del formulario.
+              </p>
+            </div>
+          </div>
         </div>
 
         <!-- Footer -->
@@ -1035,6 +1082,10 @@ const pageSize = ref(5); // Default 5 registros por página
 // Variable para campo de entrada de correos CC
 const nuevoCorreo = ref("");
 
+// Variables para la sección de resultados (bitácora)
+const resultadosRegistro = ref([]); // Lista de resultados del registro actual
+const nuevoResultadoTexto = ref(""); // Texto para nuevo resultado
+
 // Watch para recargar cuando cambien los filtros
 watch([moduloSeleccionado, q, filtroEstado, page, pageSize], () => {
   cargarRegistros();
@@ -1337,6 +1388,10 @@ async function editarRegistro(id) {
       modoModal.value = "editar";
       Object.keys(draft).forEach(k => delete draft[k]);
       Object.assign(draft, normalizeRecord(registroEdit));
+      
+      // Cargar resultados del registro
+      await cargarResultados(reg.id);
+      
       modalAbierta.value = true;
     }
   } catch (error) {
@@ -1348,6 +1403,8 @@ async function editarRegistro(id) {
 function cerrarModal() {
   modalAbierta.value = false;
   nuevoCorreo.value = ''; // Limpiar campo de correo
+  resultadosRegistro.value = []; // Limpiar resultados
+  nuevoResultadoTexto.value = ''; // Limpiar texto de nuevo resultado
 }
 
 // Función auxiliar para construir el payload de evidencias
@@ -1531,6 +1588,11 @@ async function onGuardar() {
       datos_modulo: construirDatosModuloPayload(draft),
       usuario_creacion: 'usuario' // TODO: Obtener usuario actual del sistema
     };
+    
+    // Agregar resultados iniciales si hay texto en el campo (solo para crear)
+    if (modoModal.value === 'crear' && nuevoResultadoTexto.value.trim()) {
+      payload.resultados_iniciales = [nuevoResultadoTexto.value.trim()];
+    }
 
     // Si es edición, usar endpoint de actualización
     if (modoModal.value === 'editar' && draft.id) {
@@ -1779,6 +1841,92 @@ function humanDate(iso) {
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleString();
 }
+
+// ========================================
+// FUNCIONES PARA RESULTADOS (BITÁCORA)
+// ========================================
+
+function formatearFecha(isoString) {
+  if (!isoString) return "—";
+  const fecha = new Date(isoString);
+  if (isNaN(fecha.getTime())) return "—";
+  
+  const opciones = {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  };
+  
+  return fecha.toLocaleString('es-CO', opciones);
+}
+
+async function cargarResultados(idRegistro) {
+  try {
+    const response = await axios.post(
+      `${apiUrl}/gestion-continuidad/listar_resultados_gsc`,
+      { id_registro: idRegistro },
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    );
+    
+    if (response.status === 200 && response.data.data) {
+      resultadosRegistro.value = response.data.data;
+    }
+  } catch (error) {
+    console.error('Error cargando resultados:', error);
+  }
+}
+
+async function agregarResultado() {
+  // Validar que hay texto
+  if (!nuevoResultadoTexto.value.trim()) {
+    alert('Por favor ingrese un texto para el resultado');
+    return;
+  }
+
+  // Solo permitir agregar si está en modo edición y tiene id_registro
+  if (modoModal.value !== 'editar' || !draft.id_registro) {
+    alert('Guarda el registro primero antes de agregar resultados');
+    return;
+  }
+
+  try {
+    const response = await axios.post(
+      `${apiUrl}/gestion-continuidad/crear_resultado_gsc`,
+      {
+        id_registro: draft.id_registro,
+        texto: nuevoResultadoTexto.value.trim()
+      },
+      {
+        headers: {
+          Accept: "application/json",
+        }
+      }
+    );
+
+    if (response.status === 201) {
+      // Limpiar el campo de texto
+      nuevoResultadoTexto.value = "";
+      
+      // Recargar la lista de resultados
+      await cargarResultados(draft.id_registro);
+      
+      // Mostrar mensaje de éxito
+      console.log('Resultado agregado exitosamente');
+    }
+  } catch (error) {
+    console.error('Error agregando resultado:', error);
+    alert('Error al agregar resultado. Ver consola para detalles.');
+  }
+}
+
+// ========================================
+
 
 function addEvidencia() {
   if (!draft.evidencias) draft.evidencias = [];
