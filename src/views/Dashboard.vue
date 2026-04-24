@@ -145,31 +145,11 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import { useTickets } from '../store/tickets'
-import axios from 'axios'
+import { useMetricasDashboard } from '../composables/dashboard/useDashboard.js'
 import apiUrl from "../../config.js"
 
 const { state } = useTickets()
 const tiposTicket = state.tiposTicket ?? ['Gestión','Estratégico']
-
-// Estado de carga y métricas locales
-const cargandoMetricas = ref(false)
-const metricas = ref({
-  totals: {
-    total: 0,
-    gestion: 0,
-    estrategicos: 0,
-    prioridad_alta: 0
-  },
-  estados: {
-    abiertos: 0,
-    en_proceso: 0,
-    completados: 0
-  },
-  tipos_soporte: [],
-  macroprocesos: [],
-  prioridades: [],
-  asignados: []
-})
 
 // ===== Filtros =====
 const from = ref(''), to = ref(''), tipoSel = ref('')
@@ -184,41 +164,8 @@ function quick(kind){
   showFilters.value = true
 }
 
-// Función para cargar métricas cuando cambien los filtros
-const cargarMetricas = async () => {
-  if (cargandoMetricas.value) return
-  
-  cargandoMetricas.value = true
-  try {
-    const response = await axios.post(
-      `${apiUrl}/dashboard/obtener_metricas_dashboard`,
-      {
-        fecha_inicio: from.value || null,
-        fecha_fin: to.value || null
-      },
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    )
-
-    if (response.status === 200) {
-      // Actualizar las métricas locales con los datos de la API
-      metricas.value = response.data.data
-      console.log('Métricas cargadas:', response.data.data)
-    } else {
-      console.error('Error en respuesta:', response.data.message)
-      // Mantener métricas vacías en caso de error
-    }
-
-  } catch (error) {
-    console.error('Error cargando métricas del dashboard:', error)
-    // Mantener métricas vacías en caso de error
-  } finally {
-    cargandoMetricas.value = false
-  }
-}
+// ===== Query de métricas (reactiva a from/to) =====
+const { metricas, isLoading: cargandoMetricas, isFetching } = useMetricasDashboard(from, to)
 
 const inRange = (d,f,t)=>{
   const x=new Date(d).getTime()
@@ -470,19 +417,11 @@ const ticketsSig = ()=> tickets.value.map(t=>[
   t.tipoSoporte,t.macroproceso,t.prioridad,t.asignadoA,t.tipoTicket
 ].join('|'))
 
-// Watchers
+// Watchers de gráficos — solo redibujan cuando cambian los datos o filtros
 watch([ticketsSig, from, to, tipoSel], redraw, {deep:true})
+watch(metricas, redraw, { deep: true })
 
-// Watcher para recargar métricas cuando cambien los filtros de fecha
-watch([from, to], async () => {
-  await cargarMetricas()
-}, { deep: true })
-
-onMounted(async () => {
-  // Cargar métricas iniciales
-  await cargarMetricas()
-  
-  // Configurar redibujado de gráficos
+onMounted(() => {
   redraw()
   let r = null
   window.addEventListener('resize', () => { 

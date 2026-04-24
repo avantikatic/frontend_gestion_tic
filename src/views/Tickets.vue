@@ -27,7 +27,7 @@
       </div>
 
       <div class="actions">
-        <button class="button" @click="syncM365" style="background-color: #17C1A4; color: white">Sincronizar Microsoft 365</button>
+        <button class="button" @click="syncCorreos" style="background-color: #17C1A4; color: white">Sincronizar Microsoft 365</button>
         <button 
           class="button ghost" 
           @click="clearAllFilters" 
@@ -510,18 +510,28 @@
   </div>
 
   <!-- Overlay de carga -->
-  <div v-if="loading" class="loading-overlay">
+  <div v-if="showLoading" class="loading-overlay">
       <div class="custom-spinner">
           <div class="spinner-circle"></div>
       </div>
-      <p class="loading-text">{{ loading_msg }}</p>
+      <p class="loading-text">{{ loadingMsgComputed }}</p>
   </div>
 </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, watchEffect, onMounted, nextTick } from 'vue'
 import { useTickets } from '../store/tickets'
+import { useQueryClient } from '@tanstack/vue-query'
+import { useTicketsCatalogos } from '../composables/tickets/useTicketsCatalogos.js'
+import {
+  useCorreos,
+  useTicketsFiltrados,
+  useDescartarCorreo,
+  useActualizarCampo,
+  useEnviarRespuesta,
+  useConvertirCorreo,
+} from '../composables/tickets/useTickets.js'
 
 import { useRouter } from 'vue-router';
 import axios from 'axios';
@@ -531,12 +541,24 @@ const loading = ref(false);
 const loading_msg = ref('');
 
 const router = useRouter();
+const queryClient = useQueryClient();
 
 const { state } = useTickets()
 
-const correos = ref([]);
-const ticketsCorreos = ref([]); // Correos convertidos en tickets
-const token = ref('');
+// ── Composables TanStack ──────────────────────────────────────────────────────
+const {
+  estados,
+  tecnicos,
+  prioridades,
+  tiposSoporte,
+  tiposTicket,
+  macroprocesos,
+  tiposNivel,
+  origenesEstrategicos,
+} = useTicketsCatalogos()
+
+const { correos, token, isLoading: isLoadingCorreos, syncCorreos } = useCorreos()
+
 const attachmentsCache = ref(new Map()); // Cache para attachments
 const mailBodyRef = ref(null); // Referencia al contenedor del mail body
 const currentAttachments = ref([]); // Attachments del correo actual
@@ -558,16 +580,6 @@ const imageViewer = ref({
   title: ''
 });
 
-// Catálogos
-const estados = ref([]);
-const tecnicos = ref([]);
-const prioridades = ref([]);
-const tiposSoporte = ref([]);
-const tiposTicket = ref([]);
-const macroprocesos = ref([]);
-const tiposNivel = ref([]);
-const origenesEstrategicos = ref([]);
-
 const asignados = computed(()=>{
   const nombres = new Set()
   // Usar técnicos cargados dinámicamente de la BD
@@ -580,300 +592,7 @@ const asignados = computed(()=>{
 })
 // BANDEJA (mock)
 const inbox = ref([])
-onMounted(async ()=>{
-  // Cargar catálogos dinámicos primero
-  await cargarEstadosTickets();
-  await cargarTecnicosGestionTic();
-  
-  // Sincronizar correos para la bandeja
-  await syncM365();
-  
-  // Cargar contadores de tickets para las vistas
-  await actualizarContadores();
-
-  await obtenerPrioridades();
-  await obtenerTipoSoporte();
-  await obtenerTipoTicket();
-  await obtenerMacroprocesos();
-  await obtenerTipoNivel();
-  await obtenerOrigenEstrategico();
-})
 watch(inbox, v=> localStorage.setItem('inbox_m365', JSON.stringify(v)), { deep:true })
-
-const obtenerOrigenEstrategico = async () => {
-  try {
-    const response = await axios.post(
-        `${apiUrl}/obtener_origen_estrategico`, {},
-        {
-            headers: {
-                Accept: "application/json",
-            }
-        }
-    );
-    if (response.status === 200) {
-        origenesEstrategicos.value = response.data.data || [];
-    }
-  } catch (error) {
-    console.error('Error al obtener orígenes estratégicos:', error);
-  }
-}
-
-const obtenerPrioridades = async () => {
-  try {
-    const response = await axios.post(
-        `${apiUrl}/obtener_prioridades`, {},
-        {
-            headers: {
-                Accept: "application/json",
-            }
-        }
-    );
-    if (response.status === 200) {
-        prioridades.value = response.data.data || [];
-    }
-  } catch (error) {
-    console.error('Error al obtener correos:', error);
-  } 
-};
-
-const obtenerTipoSoporte = async () => {
-  try {
-    const response = await axios.post(
-        `${apiUrl}/obtener_tipo_soporte`, {},
-        {
-            headers: {
-                Accept: "application/json",
-            }
-        }
-    );
-    if (response.status === 200) {
-        tiposSoporte.value = response.data.data || [];
-    }
-  } catch (error) {
-    console.error('Error al obtener tipos de soporte:', error);
-  } 
-};
-
-const obtenerTipoTicket = async () => {
-  try {
-    const response = await axios.post(
-        `${apiUrl}/obtener_tipo_ticket`, {},
-        {
-            headers: {
-                Accept: "application/json",
-            }
-        }
-    );
-    if (response.status === 200) {
-        tiposTicket.value = response.data.data || [];
-    }
-  } catch (error) {
-    console.error('Error al obtener tipos de ticket:', error);
-    // Fallback a tipos por defecto si falla la carga
-    tiposTicket.value = [
-      {id: 1, nombre: 'Gestión'},
-      {id: 2, nombre: 'Estratégico'}
-    ];
-  } 
-};
-
-const obtenerMacroprocesos = async () => {
-  try {
-    const response = await axios.post(
-        `${apiUrl}/obtener_macroprocesos`, {},
-        {
-            headers: {
-                Accept: "application/json",
-            }
-        }
-    );
-    if (response.status === 200) {
-        macroprocesos.value = response.data.data || [];
-    }
-  } catch (error) {
-    console.error('Error al obtener macroprocesos:', error);
-  } 
-};
-
-const obtenerTipoNivel = async () => {
-  try {
-    const response = await axios.post(
-        `${apiUrl}/obtener_tipo_nivel`, {},
-        {
-            headers: {
-                Accept: "application/json",
-            }
-        }
-    );
-    if (response.status === 200) {
-        tiposNivel.value = response.data.data || [];
-    }
-  } catch (error) {
-    console.error('Error al obtener tipos de nivel:', error);
-  } 
-};
-
-const syncM365 = async () => {
-  try {
-    loading.value = true;
-    loading_msg.value = 'Buscando...';
-
-    const response = await axios.post(
-        `${apiUrl}/obtener_correos`, {},
-        {
-            headers: {
-                Accept: "application/json",
-            }
-        }
-    );
-    if (response.status === 200) {
-        correos.value = response.data.data.emails || [];
-        token.value = response.data.data.token || '';
-    }
-  } catch (error) {
-    console.error('Error al obtener correos:', error);
-  } finally {
-    loading.value = false;
-    loading_msg.value = '';
-  }
-}
-
-// Función para cargar tickets desde correos con vista específica
-// Función para cargar tickets usando filtrado por backend
-const cargarTicketsCorreos = async (vistaSeleccionada = 'todos', aplicarFiltros = false) => {
-  try {
-    loading.value = true;
-    loading_msg.value = `Cargando ${vistaSeleccionada}...`;
-
-    // Preparar parámetros para el backend
-    const parametros = {
-      vista: vistaSeleccionada,
-      limite: 100,
-      offset: 0
-    };
-
-    // Si aplicarFiltros es true, incluir los filtros activos
-    if (aplicarFiltros) {
-      if (q.value && q.value.trim()) parametros.q = q.value.trim();
-      if (fEstado.value) parametros.fEstado = fEstado.value;
-      if (fAsignado.value) parametros.fAsignado = fAsignado.value;
-      if (fTipoSoporte.value) parametros.fTipoSoporte = fTipoSoporte.value;
-      if (fMacro.value) parametros.fMacro = fMacro.value;
-      if (fTipoTicket.value) parametros.fTipoTicket = fTipoTicket.value;
-    }
-
-    const response = await axios.post(
-      `${apiUrl}/filtrar_tickets`,
-      parametros,
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-
-    if (response.status === 200) {
-      const data = response.data.data;
-      ticketsCorreos.value = data.tickets || [];
-      
-      // Solo actualizar contadores si no estamos aplicando filtros específicos
-      if (!aplicarFiltros) {
-        await actualizarContadores();
-      }
-    }
-  } catch (error) {
-    console.error('Error al cargar tickets de correos:', error);
-  } finally {
-    loading.value = false;
-    loading_msg.value = '';
-  }
-}
-
-// Función para actualizar contadores de todas las vistas de manera eficiente
-const actualizarContadores = async () => {
-  try {
-    // Vistas base del sistema
-    const vistasActualizar = ['todos', 'sin', 'abiertos', 'proceso', 'comp'];
-    
-    // Agregar vistas de técnicos dinámicamente
-    const vistasTecnicos = tecnicos.value.map(tecnico => `tecnico_${tecnico.id}`);
-    const todasLasVistas = [...vistasActualizar, ...vistasTecnicos];
-    
-    // Hacer peticiones en paralelo para eficiencia
-    const promesas = todasLasVistas.map(async (vistaKey) => {
-      const response = await axios.post(
-        `${apiUrl}/obtener_tickets_correos`,
-        { 
-          vista: vistaKey,
-          limite: 1, // Solo necesitamos el conteo
-          offset: 0
-        },
-        {
-          headers: {
-            Accept: "application/json",
-          }
-        }
-      );
-      
-      if (response.status === 200) {
-        return { vista: vistaKey, total: response.data.data.total };
-      }
-      return { vista: vistaKey, total: 0 };
-    });
-    
-    const resultados = await Promise.all(promesas);
-    
-    // Actualizar contadores
-    resultados.forEach(({ vista, total }) => {
-      vistasCounts.value[vista] = total;
-    });
-    
-  } catch (error) {
-    console.error('Error actualizando contadores:', error);
-  }
-}
-
-// Función para cargar estados de tickets desde el backend
-const cargarEstadosTickets = async () => {
-  try {
-    const response = await axios.get(
-      `${apiUrl}/obtener_estados_tickets`,
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-
-    if (response.status === 200) {
-      estados.value = response.data.data;
-    }
-  } catch (error) {
-    console.error('Error al cargar estados de tickets:', error);
-    // Fallback a estados por defecto si falla la carga
-    estados.value = ['Abierto','En Proceso','En Espera','Completado','Cerrado'];
-  }
-}
-
-// Función para cargar técnicos de gestión TIC desde el backend
-const cargarTecnicosGestionTic = async () => {
-  try {
-    const response = await axios.get(
-      `${apiUrl}/obtener_tecnicos_gestion_tic`,
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-
-    if (response.status === 200) {
-      tecnicos.value = response.data.data;
-    }
-  } catch (error) {
-    console.error('Error al cargar técnicos de gestión TIC:', error);
-  }
-}
 
 // Función para obtener attachments de un correo específico
 const obtenerAttachments = async (messageId) => {
@@ -953,44 +672,25 @@ async function convertToTicket(m) {
     loading.value = true;
     loading_msg.value = 'Convirtiendo a ticket...';
 
-    const response = await axios.post(
-      `${apiUrl}/convertir_correo_ticket`,
-      { 
-        messageId: m.id || m.messageId,
-        id: m.id || m.messageId 
-      },
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
+    const response = await convertirCorreoMutation.mutateAsync(m);
 
-    if (response.status === 200) {
-      // Crear el ticket localmente usando la función promote existente
-      promote(m);
-      
-      // Obtener el ID numérico del ticket desde la respuesta del backend
-      let ticketId = response.data.data?.ticket_id || response.data.data?.id || m.id;
-      
-      // Asegurar que sea string y sin caracteres especiales
-      ticketId = String(ticketId).trim();
-      
-      // Enviar respuesta automática al solicitante usando datos del correo
-      const emailEnviado = await enviarRespuestaAutomatica(m, ticketId);
-      
-      // Mostrar mensaje de éxito
-      const ticketDisplay = `TCK-${String(ticketId).padStart(4,'0')}`;
-      if (emailEnviado) {
-        alert(`✅ Ticket ${ticketDisplay} creado exitosamente. Confirmación automática enviada.`);
-      } else {
-        alert(`✅ Ticket ${ticketDisplay} creado exitosamente. (Confirmación automática falló)`);
-      }
-      
+    // Crear el ticket localmente usando la función promote existente
+    promote(m);
+    
+    // Obtener el ID numérico del ticket desde la respuesta del backend
+    let ticketId = response.data?.data?.ticket_id || response.data?.data?.id || m.id;
+    ticketId = String(ticketId).trim();
+    
+    // Enviar respuesta automática al solicitante usando datos del correo
+    const emailEnviado = await enviarRespuestaAutomatica(m, ticketId);
+    
+    const ticketDisplay = `TCK-${String(ticketId).padStart(4,'0')}`;
+    if (emailEnviado) {
+      alert(`✅ Ticket ${ticketDisplay} creado exitosamente. Confirmación automática enviada.`);
     } else {
-      const errorMsg = response.data?.message || 'Error desconocido';
-      alert(`Error al convertir el correo a ticket: ${errorMsg}`);
+      alert(`✅ Ticket ${ticketDisplay} creado exitosamente. (Confirmación automática falló)`);
     }
+    
   } catch (error) {
     console.error('Error al convertir correo a ticket:', error);
     const errorMsg = error.response?.data?.message || error.message || 'Error de conexión';
@@ -1050,26 +750,8 @@ async function discard(m) {
     loading.value = true;
     loading_msg.value = 'Descartando correo...';
 
-    const response = await axios.post(
-      `${apiUrl}/descartar_correo`,
-      { 
-        messageId: m.id || m.messageId,
-        id: m.id || m.messageId 
-      },
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-
-    if (response.status === 200) {
-      // Remover el correo de la lista local solo si el backend confirma el descarte
-      correos.value = correos.value.filter(x => x.id !== m.id);
-    } else {
-      console.error('Error descartando correo:', response.data.message);
-      alert('Error al descartar el correo. Inténtalo de nuevo.');
-    }
+    await descartarCorreoMutation.mutateAsync(m);
+    // La mutation invalida ['tickets-correos'] en onSuccess → correos se recarga automáticamente
   } catch (error) {
     console.error('Error al descartar correo:', error);
     alert('Error de conexión al descartar el correo. Inténtalo de nuevo.');
@@ -1136,6 +818,7 @@ watch([() => mail.value.item, () => mail.value.open], async ([newMail, isOpen]) 
 
 // Filtros
 const q = ref('')
+const qQuery = ref('') // versión debounced de q para el queryKey
 const fEstado = ref(''); const fPrioridad = ref('')
 const fAsignado = ref(''); const fTipoSoporte = ref('')
 const fMacro = ref(''); const fTipoTicket = ref('')
@@ -1148,6 +831,72 @@ const vistasCounts = ref({
   abiertos: 0,
   proceso: 0,
   comp: 0
+})
+
+// ── TanStack: lista de tickets filtrada ──────────────────────────────────────
+const { ticketsCorreos, isLoading: loadingTickets } = useTicketsFiltrados({
+  vista,
+  q: qQuery,
+  fEstado,
+  fAsignado,
+  fTipoSoporte,
+  fMacro,
+  fTipoTicket,
+})
+
+// ── Loading overlay conectado a estados TanStack ────────────────────────────
+const showLoading = computed(() =>
+  loading.value || isLoadingCorreos.value || loadingTickets.value
+)
+const loadingMsgComputed = computed(() => {
+  if (loading.value) return loading_msg.value
+  if (isLoadingCorreos.value) return 'Buscando...'
+  if (loadingTickets.value) return `Cargando ${vista.value}...`
+  return ''
+})
+
+// ── TanStack: mutations ───────────────────────────────────────────────────────
+const descartarCorreoMutation = useDescartarCorreo()
+const actualizarCampoMutation = useActualizarCampo()
+const enviarRespuestaMutation  = useEnviarRespuesta()
+const convertirCorreoMutation  = useConvertirCorreo()
+
+// Función para actualizar contadores (sigue siendo útil para refrescar vistasCounts)
+const actualizarContadores = async () => {
+  try {
+    const vistasActualizar = ['todos', 'sin', 'abiertos', 'proceso', 'comp'];
+    const vistasTecnicos = tecnicos.value.map(tecnico => `tecnico_${tecnico.id}`);
+    const todasLasVistas = [...vistasActualizar, ...vistasTecnicos];
+
+    const promesas = todasLasVistas.map(async (vistaKey) => {
+      const response = await axios.post(
+        `${apiUrl}/obtener_tickets_correos`,
+        { vista: vistaKey, limite: 1, offset: 0 },
+        { headers: { Accept: 'application/json' } }
+      );
+      return response.status === 200
+        ? { vista: vistaKey, total: response.data.data.total }
+        : { vista: vistaKey, total: 0 };
+    });
+
+    const resultados = await Promise.all(promesas);
+    resultados.forEach(({ vista: v, total }) => {
+      vistasCounts.value[v] = total;
+    });
+  } catch (error) {
+    console.error('Error actualizando contadores:', error);
+  }
+}
+
+// Cargar contadores al montar y re-cargar cuando lleguen los técnicos desde TanStack
+onMounted(async () => {
+  await actualizarContadores()
+})
+
+watch(tecnicos, async (newTec, oldTec) => {
+  if (newTec.length > 0 && (!oldTec || oldTec.length === 0)) {
+    await actualizarContadores()
+  }
 })
 
 const vistas = computed(() => {
@@ -1178,8 +927,7 @@ const filteredBase = computed(()=>{
     return [];
   }
   
-  // Ahora el filtrado se hace por backend - solo devolvemos los tickets cargados
-  // El filtrado pesado ya no se hace en frontend para mejor rendimiento
+  // TanStack Query maneja la carga reactiva — ticketsCorreos se actualiza automáticamente
   return ticketsCorreos.value;
 })
 
@@ -1198,38 +946,23 @@ const filtered = computed(()=>{
   return list.slice(start, start+pageSize)
 })
 
-// Watcher para cambios de vista - cargar datos específicos
-watch(vista, async (nuevaVista, vistaAnterior) => {
+// Watcher para cambios de vista – solo reinicia página (TanStack refetch automático)
+watch(vista, () => {
   page.value = 1;
-  
-  // Si cambiamos de vista a una que no sea inbox, cargar tickets correspondientes
-  if (nuevaVista !== 'inbox') {
-    await cargarTicketsCorreos(nuevaVista, false); // false = no aplicar filtros adicionales
-  }
 })
 
-// Debounce para búsqueda de texto
+// Debounce para búsqueda de texto — actualiza qQuery que forma parte del queryKey
 let searchTimeout = null;
-const debouncedSearch = (newValue, oldValue) => {
+watch(q, (newValue) => {
   if (searchTimeout) clearTimeout(searchTimeout);
-  
-  searchTimeout = setTimeout(async () => {
-    if (vista.value !== 'inbox') {
-      await cargarTicketsCorreos(vista.value, true); // true = aplicar filtros
-    }
-  }, 500); // 500ms de debounce
-};
+  searchTimeout = setTimeout(() => {
+    qQuery.value = newValue;
+  }, 500);
+});
 
-// Watcher para filtro de búsqueda de texto (con debounce)
-watch(q, debouncedSearch)
-
-// Watchers para filtros de select (respuesta inmediata)
-watch([fEstado, fAsignado, fTipoSoporte, fMacro, fTipoTicket], async () => {
+// Watchers para filtros de select – reinician página (TanStack refetch automático)
+watch([fEstado, fAsignado, fTipoSoporte, fMacro, fTipoTicket], () => {
   page.value = 1;
-  
-  if (vista.value !== 'inbox') {
-    await cargarTicketsCorreos(vista.value, true); // true = aplicar filtros
-  }
 })
 
 watch([filteredBase], ()=>{ page.value=1 })
@@ -1492,48 +1225,28 @@ async function actualizarCampoTicket(campo, valor, mensaje) {
   try {
     guardandoCampo.value = campo;
     
-    const response = await axios.post(
-      `${apiUrl}/actualizar_ticket`,
-      {
-        ticket_id: form.value.id,
-        message_id: form.value.message_id,
-        campo: campo,
-        valor: valor
-      },
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
+    await actualizarCampoMutation.mutateAsync({
+      ticket_id: form.value.id,
+      message_id: form.value.message_id,
+      campo,
+      valor,
+    });
 
-    if (response.status === 200) {
-      
-      // Actualizar visualmente el ticket en la lista local
-      actualizarTicketEnLista(form.value.id, campo, valor);
-      
-      // Mostrar indicador de éxito temporal
-      setTimeout(() => {
-        if (guardandoCampo.value === campo) {
-          guardandoCampo.value = '';
-        }
-      }, 1000);
-      await actualizarContadores(); // Refrescar contadores después de la actualización
-      await cargarTicketsCorreos(vista.value, true); // Refrescar vista actual con filtros
-    }
+    // Actualizar visualmente el ticket en la lista local
+    actualizarTicketEnLista(form.value.id, campo, valor);
+    
+    // Mostrar indicador de éxito temporal
+    setTimeout(() => {
+      if (guardandoCampo.value === campo) {
+        guardandoCampo.value = '';
+      }
+    }, 1000);
+
+    await actualizarContadores();
   } catch (error) {
     console.error(`❌ Error actualizando ${campo}:`, error);
-    console.error('❌ Error completo:', {
-      message: error.message,
-      response: error.response,
-      request: error.request,
-      config: error.config
-    });
-    
-    // Mostrar mensaje de error más específico
     const mensajeError = error.response?.data?.message || `Error al actualizar ${mensaje.toLowerCase()}`;
     alert(`${mensajeError}. Inténtalo de nuevo.`);
-    
     guardandoCampo.value = '';
   }
 }
@@ -1587,29 +1300,15 @@ async function enviarRespuesta() {
   try {
     enviandoRespuesta.value = true;
     
-    const response = await axios.post(
-      `${apiUrl}/responder_correo`,
-      {
-        message_id: form.value.message_id,
-        respuesta: reply.value.texto.trim(),
-        ticket_id: form.value.id
-      },
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
+    await enviarRespuestaMutation.mutateAsync({
+      message_id: form.value.message_id,
+      respuesta: reply.value.texto.trim(),
+      ticket_id: form.value.id,
+    });
 
-    if (response.status === 200) {
-      alert('✅ Respuesta enviada exitosamente al solicitante.');
-      
-      // Limpiar el textarea de respuesta
-      reply.value.texto = '';
-      await toggleHiloConversacion(); // Recargar el hilo para incluir la nueva respuesta
-      // Opcionalmente cerrar el modal o actualizar el estado
-      // closeModal();
-    }
+    alert('✅ Respuesta enviada exitosamente al solicitante.');
+    reply.value.texto = '';
+    await toggleHiloConversacion();
   } catch (error) {
     console.error('❌ Error enviando respuesta:', error);
     const errorMsg = error.response?.data?.message || 'Error al enviar la respuesta';
@@ -1761,16 +1460,13 @@ function refresh(){}
 // Función para limpiar todos los filtros
 async function clearAllFilters() {
   q.value = '';
+  qQuery.value = '';
   fEstado.value = '';
   fAsignado.value = '';
   fTipoSoporte.value = '';
   fMacro.value = '';
   fTipoTicket.value = '';
-  
-  // Recargar vista base sin filtros
-  if (vista.value !== 'inbox') {
-    await cargarTicketsCorreos(vista.value, false);
-  }
+  // TanStack refetch automático al cambiar los valores del queryKey
 }
 
 function mapEstado(estadoId){

@@ -623,394 +623,86 @@
 </template>
 
 <script setup>
-import { ref, watch, computed, reactive, onMounted } from 'vue';
+import { ref, watch, computed, reactive } from 'vue';
+import { useQueryClient } from '@tanstack/vue-query';
 import axios from 'axios';
 import apiUrl from "../../config.js";
+import { useGscCatalogos } from '../composables/gsc/useGscCatalogos.js';
+import { useGscRegistros, useGscContadores, useGscRegistroDetalle } from '../composables/gsc/useGscRegistros.js';
+import { useGscResultados } from '../composables/gsc/useGscResultados.js';
 
-const LS_KEY = "avantika_gestion_continuidad_tic_v2";
+const queryClient = useQueryClient();
 
-// Variables reactivas para datos desde BD
-const estadosGSC = ref([]);
-const sistemasAfectados = ref([]);
-const modulosGSC = ref([]);
-const tiposEvidencia = ref([]);
-const origenesPlataforma = ref([]);
-const fuentesSeguridad = ref([]);
-const impactos = ref([]);
-const riesgos = ref([]);
+// ── Catálogos (cargados en paralelo, staleTime: Infinity) ────────────────────
+const {
+  estadosGSC,
+  sistemasAfectados,
+  modulosGSC,
+  tiposEvidencia,
+  origenesPlataforma,
+  fuentesSeguridad,
+  impactos,
+  riesgos,
+} = useGscCatalogos();
 
-// Funciones para obtener datos desde la API
-const obtenerEstadosGSC = async () => {
-  try {
-    const response = await axios.post(
-      `${apiUrl}/gestion-continuidad/obtener_estados_gsc`, 
-      {},
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-    if (response.status === 200) {
-      estadosGSC.value = response.data.data || [];
-    }
-  } catch (error) {
-    console.error('Error al obtener estados GSC:', error);
+// ── Estado UI ────────────────────────────────────────────────────────────────
+const moduloSeleccionado = ref("");
+const modalAbierta = ref(false);
+const modoModal = ref("crear");
+const draft = reactive({});
+
+// filtros y paginación
+const q = ref("");
+const filtroEstado = ref("ALL");
+const page = ref(1);
+const pageSize = ref(5);
+
+// Correos CC
+const nuevoCorreo = ref("");
+
+// Resultados / bitácora
+const nuevoResultadoTexto = ref("");
+
+// ID del registro abierto en el modal (edición)
+const idRegistroEdicion = ref(null);
+
+// ── Queries principales ──────────────────────────────────────────────────────
+const {
+  registros,
+  totalRegistros,
+  totalPaginas,
+  isLoading: cargandoRegistros,
+  isFetching: fetchingRegistros,
+  crearRegistroMutation,
+  actualizarRegistroMutation,
+  eliminarRegistroMutation,
+} = useGscRegistros(
+  { moduloSeleccionado, filtroEstado, page, pageSize, q },
+  { estadosGSC, sistemasAfectados, modulosGSC, tiposEvidencia, fuentesSeguridad, impactos, riesgos },
+);
+
+const { data: contadoresKPI } = useGscContadores();
+
+// Detalle de registro (para el modal de edición)
+const { data: registroDetalle, isLoading: cargandoDetalle } = useGscRegistroDetalle(idRegistroEdicion);
+
+// Resultados del registro activo en el modal
+const {
+  resultados: resultadosRegistro,
+  agregarResultadoMutation,
+} = useGscResultados(idRegistroEdicion);
+
+// ── Inicializar módulo seleccionado cuando lleguen los catálogos ─────────────
+watch(modulosGSC, (modulos) => {
+  if (modulos.length > 0 && !moduloSeleccionado.value) {
+    const moduloSeg = modulos.find(m => m.codigo === 'SEG');
+    moduloSeleccionado.value = moduloSeg ? moduloSeg.codigo : modulos[0].codigo;
   }
-};
+}, { immediate: true });
 
-const obtenerSistemasAfectados = async () => {
-  try {
-    const response = await axios.post(
-      `${apiUrl}/gestion-continuidad/obtener_sistemas_afectados_gsc`, 
-      {},
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-    if (response.status === 200) {
-      sistemasAfectados.value = response.data.data || [];
-    }
-  } catch (error) {
-    console.error('Error al obtener sistemas afectados GSC:', error);
-  }
-};
-
-const obtenerModulosGSC = async () => {
-  try {
-    const response = await axios.post(
-      `${apiUrl}/gestion-continuidad/obtener_modulos_gsc`, 
-      {},
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-    if (response.status === 200) {
-      modulosGSC.value = response.data.data || [];
-      // Seleccionar el primer módulo automáticamente
-      if (modulosGSC.value.length > 0) {
-        moduloSeleccionado.value = modulosGSC.value[0].codigo;
-      }
-    }
-  } catch (error) {
-    console.error('Error al obtener módulos GSC:', error);
-  }
-};
-
-const obtenerTiposEvidencia = async () => {
-  try {
-    const response = await axios.post(
-      `${apiUrl}/gestion-continuidad/obtener_tipos_evidencia_gsc`, 
-      {},
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-    if (response.status === 200) {
-      tiposEvidencia.value = response.data.data || [];
-    }
-  } catch (error) {
-    console.error('Error al obtener tipos de evidencia:', error);
-  }
-};
-
-const obtenerOrigenesPlataforma = async () => {
-  try {
-    const response = await axios.post(
-      `${apiUrl}/gestion-continuidad/obtener_origenes_plataforma_gsc`, 
-      {},
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-    if (response.status === 200) {
-      origenesPlataforma.value = response.data.data || [];
-    }
-  } catch (error) {
-    console.error('Error al obtener orígenes de plataforma:', error);
-  }
-};
-
-const obtenerFuentesSeguridad = async () => {
-  try {
-    const response = await axios.post(
-      `${apiUrl}/gestion-continuidad/obtener_fuentes_seguridad_gsc`, 
-      {},
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-    if (response.status === 200) {
-      fuentesSeguridad.value = response.data.data || [];
-    }
-  } catch (error) {
-    console.error('Error al obtener fuentes de seguridad:', error);
-  }
-};
-
-const obtenerImpactos = async () => {
-  try {
-    const response = await axios.post(
-      `${apiUrl}/gestion-continuidad/obtener_impactos_gsc`, 
-      {},
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-    if (response.status === 200) {
-      impactos.value = response.data.data || [];
-    }
-  } catch (error) {
-    console.error('Error al obtener impactos:', error);
-  }
-};
-
-const obtenerRiesgos = async () => {
-  try {
-    const response = await axios.post(
-      `${apiUrl}/gestion-continuidad/obtener_riesgos_gsc`, 
-      {},
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-    if (response.status === 200) {
-      riesgos.value = response.data.data || [];
-    }
-  } catch (error) {
-    console.error('Error al obtener riesgos:', error);
-  }
-};
-
-// Función para cargar contadores de KPIs (totales globales de todos los módulos)
-const cargarContadores = async () => {
-  try {
-    const response = await axios.post(
-      `${apiUrl}/gestion-continuidad/obtener_contadores_gsc`,
-      {}, // Sin filtro de módulo = totales globales
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-
-    if (response.status === 200 && response.data.data) {
-      contadoresKPI.value = response.data.data;
-    }
-  } catch (error) {
-    console.error('Error al cargar contadores:', error);
-    contadoresKPI.value = {
-      total: 0,
-      abiertos: 0,
-      en_analisis: 0,
-      mitigados: 0,
-      cerrados: 0
-    };
-  }
-};
-
-// Función para cargar registros desde la API con filtros
-const cargarRegistros = async () => {
-  try {
-    // Encontrar el módulo actual
-    const modulo = modulosGSC.value.find(m => m.codigo === moduloSeleccionado.value);
-    if (!modulo) return;
-
-    // Encontrar el estado si hay filtro
-    let idEstado = null;
-    if (['ABI', 'ANA', 'MIT', 'CER'].includes(filtroEstado.value)) {
-      const codigoEstado = filtroEstado.value;
-      const nombreEstado = codigoEstado === 'ABI' ? 'Abierto' : 
-                           codigoEstado === 'ANA' ? 'En análisis' :
-                           codigoEstado === 'MIT' ? 'Mitigado' : 'Cerrado';
-      const estado = estadosGSC.value.find(e => e.nombre === nombreEstado);
-      if (estado) idEstado = estado.id;
-    }
-
-    // Construir filtros para el backend
-    const filtros = {
-      id_modulo: modulo.id,
-      limite: pageSize.value,
-      offset: (page.value - 1) * pageSize.value
-    };
-
-    if (idEstado) {
-      filtros.id_estado = idEstado;
-    }
-
-    if (q.value.trim()) {
-      filtros.q = q.value.trim();
-    }
-
-    const response = await axios.post(
-      `${apiUrl}/gestion-continuidad/listar_registros_gsc`,
-      filtros,
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-    if (response.status === 200 && response.data.data) {
-      const data = response.data.data;
-      
-      // Actualizar metadatos de paginación
-      totalRegistros.value = data.total || 0;
-      totalPaginas.value = data.total_paginas || 1;
-
-      // Transformar los registros de la API al formato del componente
-      registros.value = (data.registros || []).map(reg => {
-        // Mapear los datos básicos
-        const modulo = modulosGSC.value.find(m => m.id === reg.id_modulo);
-        const estado = estadosGSC.value.find(e => e.id === reg.id_estado);
-        
-        const registroUI = {
-          id: reg.id, // El campo se llama 'id' en el modelo
-          id_registro: reg.id, // Mantener referencia
-          id_modulo: reg.id_modulo, // Guardar también el id_modulo
-          modulo: modulo ? modulo.codigo : 'SEG',
-          estado: estado ? estado.nombre : 'Abierto',
-          notificarGerencia: reg.notificar_gerencia,
-          descripcion: reg.descripcion || '',
-          resumen: reg.resumen || '',
-          creadoEn: reg.fecha_creacion,
-          actualizadoEn: reg.fecha_actualizacion || reg.fecha_creacion,
-          afectaSistemas: [],
-          evidencias: [],
-          evidencia: false, // Se actualizará si tiene evidencias
-          // Campos del backend para optimización
-          tiene_evidencias: reg.tiene_evidencias || false,
-          cantidad_evidencias: reg.cantidad_evidencias || 0,
-          cantidad_sistemas_afectados: reg.cantidad_sistemas_afectados || 0,
-          // Mapear historial de estados
-          hitosEstado: {
-            abiertoEn: reg.fecha_abierto || null,
-            enAnalisisEn: reg.fecha_en_analisis || null,
-            mitigadoEn: reg.fecha_mitigado || null,
-            cerradoEn: reg.fecha_cerrado || null
-          }
-        };
-
-        // Mapear sistemas afectados
-        if (Array.isArray(reg.sistemas_afectados)) {
-          registroUI.afectaSistemas = reg.sistemas_afectados.map(sistema => {
-            // El backend retorna objetos {id, nombre}
-            return sistema.nombre;
-          });
-        }
-
-        // Mapear evidencias
-        if (Array.isArray(reg.evidencias) && reg.evidencias.length > 0) {
-          registroUI.evidencias = reg.evidencias.map(ev => {
-            const tipo = tiposEvidencia.value.find(t => t.id === ev.id_tipo_evidencia);
-            return {
-              uid: `E-${ev.id_evidencia}`,
-              tipo: tipo ? tipo.nombre : '',
-              observacion: ev.observacion || '',
-              // Datos específicos según el tipo
-              ...ev.datos_especificos
-            };
-          });
-          registroUI.evidencia = true; // Marcar que tiene evidencias
-        }
-
-        // Mapear datos específicos del módulo
-        if (reg.datos_modulo) {
-          const dm = reg.datos_modulo;
-          
-          switch (registroUI.modulo) {
-            case 'SEG':
-              registroUI.fechaHora = dm.fecha_hora_incidente;
-              const fuente = fuentesSeguridad.value.find(f => f.id === dm.id_fuente_seguridad);
-              registroUI.fuente = fuente ? fuente.nombre : '';
-              registroUI.tipo = dm.tipo_amenaza || '';
-              const impacto = impactos.value.find(i => i.id === dm.id_impacto);
-              registroUI.impacto = impacto ? impacto.nombre : '';
-              registroUI.responsableTIC = dm.responsable_tic || '';
-              break;
-
-            case 'DISP':
-              registroUI.servicioAfectado = dm.servicio_afectado || '';
-              registroUI.tipoEvento = dm.tipo_evento || '';
-              registroUI.tiempoIndisponibleMin = dm.tiempo_indisponible_min || 0;
-              registroUI.slaAfectado = dm.sla_afectado || false;
-              registroUI.acciones = dm.acciones || '';
-              break;
-
-            case 'MNT':
-              registroUI.area = dm.area || '';
-              registroUI.tipo = dm.tipo_mantenimiento || '';
-              registroUI.descripcion = dm.descripcion || '';
-              registroUI.fechaInicio = dm.fecha_inicio;
-              registroUI.fechaFin = dm.fecha_fin;
-              registroUI.requiereParada = dm.requiere_parada || false;
-              const riesgo = riesgos.value.find(r => r.id === dm.id_riesgo);
-              registroUI.riesgo = riesgo ? riesgo.nombre : '';
-              break;
-
-            case 'DR':
-              registroUI.escenario = dm.escenario || '';
-              registroUI.fechaInicio = dm.fecha_inicio;
-              registroUI.fechaFin = dm.fecha_fin;
-              registroUI.objetivo = dm.objetivo || '';
-              registroUI.resultado = dm.resultado || '';
-              registroUI.hallazgos = dm.hallazgos || '';
-              registroUI.leccionesAprendidas = dm.lecciones_aprendidas || '';
-              break;
-          }
-        }
-
-        return normalizeRecord(registroUI);
-      });
-    }
-  } catch (error) {
-    console.error('Error al cargar registros:', error);
-    registros.value = [];
-    totalRegistros.value = 0;
-    totalPaginas.value = 1;
-  }
-};
-
-// Cargar datos al montar el componente
-onMounted(async () => {
-  await obtenerEstadosGSC();
-  await obtenerSistemasAfectados();
-  await obtenerModulosGSC();
-  await obtenerTiposEvidencia();
-  await obtenerOrigenesPlataforma();
-  await obtenerFuentesSeguridad();
-  await obtenerImpactos();
-  await obtenerRiesgos();
-  
-  // Establecer el módulo inicial a SEG (Seguridad)
-  if (modulosGSC.value.length > 0) {
-    const moduloSeg = modulosGSC.value.find(m => m.codigo === 'SEG');
-    if (moduloSeg) {
-      moduloSeleccionado.value = moduloSeg.codigo;
-    } else {
-      // Si no encuentra SEG, usar el primer módulo
-      moduloSeleccionado.value = modulosGSC.value[0].codigo;
-    }
-  }
-  
-  // Cargar registros y contadores desde la API
-  await cargarRegistros();
-  await cargarContadores();
+// Reset página cuando cambien filtros (no paginación)
+watch([moduloSeleccionado, q, filtroEstado, pageSize], () => {
+  page.value = 1;
 });
 
 const SISTEMAS_CRITICOS = [
@@ -1054,47 +746,25 @@ function nowLocalDatetime() {
 // }
 
 // Estado - Registros y paginación del backend
-const registros = ref([]);
-const totalRegistros = ref(0);
-const totalPaginas = ref(1);
+// ── eliminado: ahora viene de useGscRegistros() ─────────────────────────────
 
 // Contadores de KPIs por estado (vienen del backend)
-const contadoresKPI = ref({
-  total: 0,
-  abiertos: 0,
-  en_analisis: 0,
-  mitigados: 0,
-  cerrados: 0
-});
+// ── eliminado: ahora viene de useGscContadores() ────────────────────────────
 
 // UI state
-const moduloSeleccionado = ref("");
-const modalAbierta = ref(false);
-const modoModal = ref("crear");
-const draft = reactive({});
+// ── eliminado: ahora declarado arriba en la nueva sección ───────────────────
 
 // filtros
-const q = ref("");
-const filtroEstado = ref("ALL");
-const page = ref(1);
-const pageSize = ref(5); // Default 5 registros por página
+// ── eliminado: ahora declarado arriba ───────────────────────────────────────
 
 // Variable para campo de entrada de correos CC
-const nuevoCorreo = ref("");
+// ── eliminado: ahora declarado arriba ───────────────────────────────────────
 
 // Variables para la sección de resultados (bitácora)
-const resultadosRegistro = ref([]); // Lista de resultados del registro actual
-const nuevoResultadoTexto = ref(""); // Texto para nuevo resultado
+// ── eliminado: ahora viene de useGscResultados() ────────────────────────────
 
 // Watch para recargar cuando cambien los filtros
-watch([moduloSeleccionado, q, filtroEstado, page, pageSize], () => {
-  cargarRegistros();
-});
-
-// Reset página cuando cambien filtros (no paginación)
-watch([moduloSeleccionado, q, filtroEstado, pageSize], () => {
-  page.value = 1;
-});
+// ── eliminado: TanStack Query reactiva automáticamente con el queryKey ───────
 
 function setModulo(m) {
   moduloSeleccionado.value = m;
@@ -1121,10 +791,10 @@ function estadoCode(st) {
 }
 
 // KPIs - Muestran totales GLOBALES de todos los módulos (SEG + DISP + MNT + DR)
-const kpiTotal = computed(() => contadoresKPI.value.total);
-const kpiAbiertos = computed(() => contadoresKPI.value.abiertos);
-const kpiMitigados = computed(() => contadoresKPI.value.mitigados);
-const kpiCerrados = computed(() => contadoresKPI.value.cerrados);
+const kpiTotal = computed(() => contadoresKPI.value?.total ?? 0);
+const kpiAbiertos = computed(() => contadoresKPI.value?.abiertos ?? 0);
+const kpiMitigados = computed(() => contadoresKPI.value?.mitigados ?? 0);
+const kpiCerrados = computed(() => contadoresKPI.value?.cerrados ?? 0);
 
 // Normalización
 function normalizeRecord(r) {
@@ -1249,20 +919,21 @@ async function editarRegistro(id) {
       return;
     }
 
-    // Obtener registro completo desde la API
-    const response = await axios.post(
-      `${apiUrl}/gestion-continuidad/obtener_registro_gsc`,
-      { id_registro: registro.id },
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
+    // Obtener registro completo usando TanStack Query (queda en caché)
+    const reg = await queryClient.fetchQuery({
+      queryKey: ['registro-gsc-detalle', registro.id],
+      queryFn: () =>
+        axios
+          .post(
+            `${apiUrl}/gestion-continuidad/obtener_registro_gsc`,
+            { id_registro: registro.id },
+            { headers: { Accept: 'application/json' } },
+          )
+          .then((r) => r.data.data),
+      staleTime: 0,
+    });
 
-    if (response.status === 200 && response.data.data) {
-      const reg = response.data.data;
-      
+    if (reg) {
       // Mapear datos al formato del formulario (similar a cargarRegistros)
       const modulo = modulosGSC.value.find(m => m.id === reg.id_modulo);
       const estado = estadosGSC.value.find(e => e.id === reg.id_estado);
@@ -1389,8 +1060,8 @@ async function editarRegistro(id) {
       Object.keys(draft).forEach(k => delete draft[k]);
       Object.assign(draft, normalizeRecord(registroEdit));
       
-      // Cargar resultados del registro
-      await cargarResultados(reg.id);
+      // Activar la query de resultados para este registro
+      idRegistroEdicion.value = reg.id;
       
       modalAbierta.value = true;
     }
@@ -1402,9 +1073,9 @@ async function editarRegistro(id) {
 
 function cerrarModal() {
   modalAbierta.value = false;
-  nuevoCorreo.value = ''; // Limpiar campo de correo
-  resultadosRegistro.value = []; // Limpiar resultados
-  nuevoResultadoTexto.value = ''; // Limpiar texto de nuevo resultado
+  idRegistroEdicion.value = null; // Limpia las queries de detalle y resultados
+  nuevoCorreo.value = '';
+  nuevoResultadoTexto.value = '';
 }
 
 // Función auxiliar para construir el payload de evidencias
@@ -1596,56 +1267,24 @@ async function onGuardar() {
 
     // Si es edición, usar endpoint de actualización
     if (modoModal.value === 'editar' && draft.id) {
-      const response = await axios.post(
-        `${apiUrl}/gestion-continuidad/actualizar_registro_gsc`,
-        {
-          id_registro: draft.id,
-          ...payload,
-          usuario_actualizacion: 'usuario'
-        },
-        {
-          headers: {
-            Accept: "application/json",
-          }
-        }
-      );
-
-      if (response.status === 200) {
-        alert('Registro actualizado exitosamente');
-        await cargarRegistros(); // Recargar lista desde la API
-        await cargarContadores(); // Recargar contadores KPI
-        cerrarModal();
-      }
+      await actualizarRegistroMutation.mutateAsync({
+        id_registro: draft.id,
+        ...payload,
+        usuario_actualizacion: 'usuario',
+      });
+      alert('Registro actualizado exitosamente');
+      cerrarModal();
     } else {
       // Crear nuevo registro
-      const response = await axios.post(
-        `${apiUrl}/gestion-continuidad/crear_registro_gsc`,
-        payload,
-        {
-          headers: {
-            Accept: "application/json",
-          }
-        }
-      );
-
-      if (response.status === 201) {
-        const idRegistro = response.data.data.id_registro;
-        alert(`Registro creado exitosamente con ID: ${idRegistro}`);
-        await cargarRegistros(); // Recargar lista desde la API
-        await cargarContadores(); // Recargar contadores KPI
-        cerrarModal();
-      }
+      const response = await crearRegistroMutation.mutateAsync(payload);
+      const idRegistro = response.data.data.id_registro;
+      alert(`Registro creado exitosamente con ID: ${idRegistro}`);
+      cerrarModal();
     }
   } catch (error) {
     console.error('Error guardando registro:', error);
     alert('Error al guardar el registro. Ver consola para detalles.');
   }
-
-  // MANTENER CÓDIGO ANTIGUO COMENTADO COMO RESPALDO
-  // const copy = normalizeRecord({ ...draft, actualizadoEn: new Date().toISOString() });
-  // const idx = registros.value.findIndex(r => r.id === copy.id);
-  // if (idx === -1) registros.value.unshift(copy);
-  // else registros.value.splice(idx, 1, copy);
   // cerrarModal();
 }
 
@@ -1653,29 +1292,13 @@ async function eliminarRegistro(id_registro) {
   if (!confirm("¿Seguro que deseas eliminar este registro?")) return;
   
   try {
-    const response = await axios.post(
-      `${apiUrl}/gestion-continuidad/eliminar_registro_gsc`,
-      { id_registro },
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-
-    if (response.status === 200) {
-      alert('Registro eliminado exitosamente');
-      await cargarRegistros(); // Recargar lista
-      await cargarContadores(); // Recargar contadores KPI
-      cerrarModal();
-    }
+    await eliminarRegistroMutation.mutateAsync(id_registro);
+    alert('Registro eliminado exitosamente');
+    cerrarModal();
   } catch (error) {
     console.error('Error eliminando registro:', error);
     alert('Error al eliminar el registro. Ver consola para detalles.');
   }
-
-  // MANTENER CÓDIGO ANTIGUO COMENTADO COMO RESPALDO
-  // registros.value = registros.value.filter(r => r.id !== id);
 }
 
 function exportarJSON() {
@@ -1862,63 +1485,23 @@ function formatearFecha(isoString) {
   return fecha.toLocaleString('es-CO', opciones);
 }
 
-async function cargarResultados(idRegistro) {
-  try {
-    const response = await axios.post(
-      `${apiUrl}/gestion-continuidad/listar_resultados_gsc`,
-      { id_registro: idRegistro },
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-    
-    if (response.status === 200 && response.data.data) {
-      resultadosRegistro.value = response.data.data;
-    }
-  } catch (error) {
-    console.error('Error cargando resultados:', error);
-  }
-}
-
 async function agregarResultado() {
-  // Validar que hay texto
   if (!nuevoResultadoTexto.value.trim()) {
     alert('Por favor ingrese un texto para el resultado');
     return;
   }
 
-  // Solo permitir agregar si está en modo edición y tiene id_registro
   if (modoModal.value !== 'editar' || !draft.id_registro) {
     alert('Guarda el registro primero antes de agregar resultados');
     return;
   }
 
   try {
-    const response = await axios.post(
-      `${apiUrl}/gestion-continuidad/crear_resultado_gsc`,
-      {
-        id_registro: draft.id_registro,
-        texto: nuevoResultadoTexto.value.trim()
-      },
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-
-    if (response.status === 201) {
-      // Limpiar el campo de texto
-      nuevoResultadoTexto.value = "";
-      
-      // Recargar la lista de resultados
-      await cargarResultados(draft.id_registro);
-      
-      // Mostrar mensaje de éxito
-      console.log('Resultado agregado exitosamente');
-    }
+    await agregarResultadoMutation.mutateAsync({
+      id_registro: draft.id_registro,
+      texto: nuevoResultadoTexto.value.trim(),
+    });
+    nuevoResultadoTexto.value = '';
   } catch (error) {
     console.error('Error agregando resultado:', error);
     alert('Error al agregar resultado. Ver consola para detalles.');

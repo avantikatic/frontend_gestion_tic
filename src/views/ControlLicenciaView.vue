@@ -768,64 +768,88 @@
 </template>
 
 <script setup>
-import { computed, ref, toRaw, onMounted, watch } from "vue";
+import { computed, ref, toRaw, watch } from "vue";
 import axios from "axios";
 import apiUrl from "../../config.js"
+import {
+  useLicenciasCatalogos,
+  useLicencias,
+  useTiposRevision,
+  useRevisiones,
+  useVersiones,
+} from "../composables/licencias/useLicencias.js"
 
 const cloneSafe = (obj) => JSON.parse(JSON.stringify(toRaw(obj)));
-const uid = () => (crypto?.randomUUID?.() ?? `id-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
 const usuarioActual = ref("Jeyson Martinez");
 
-const proveedores = ref([]); // Array de objetos {id, nombre}
-const productos = ref([]); // Array de objetos {id, nombre}
-const tiposServicio = ref([]); // Array de objetos {id, nombre}
-const metodosPago = ref([]); // Array de objetos {id, nombre}
-const tiposMoneda = ref([]); // Array de objetos {id, codigo, nombre, simbolo}
-
-const licencias = ref([]); // Licencias de la página actual (paginado)
-
-// KPIs desde backend
-const kpisBackend = ref({
-  total: 0,
-  criticas: 0,
-  proximas: 0,
-  vigentes: 0,
-  costo_anual_total: 0
-});
-
-// Paginación licencias
+// ── Paginación ──────────────────────────────────────────────────────────────
 const paginaActualLicencias = ref(1);
-const totalPaginasLicencias = ref(1);
-const totalLicencias = ref(0);
-const porPaginaLicencias = 5;
-
-const revisiones = ref([]); // Vacío inicialmente, se puede agregar funcionalidad después
-const tiposRevision = ref([]); // Array de objetos {id, nombre} desde BD
-
-// Paginación revisiones
+const porPaginaLicencias = ref(5);
 const paginaActualRevisiones = ref(1);
-const totalPaginasRevisiones = ref(1);
-const totalRevisiones = ref(0);
-const porPaginaRevisiones = 5;
+const porPaginaRevisiones = ref(5);
+const paginaActualVersiones = ref(1);
+const porPaginaVersiones = ref(5);
 
-// Estados revisiones
+// ── Catálogos ───────────────────────────────────────────────────────────────
+const {
+  tiposServicio,
+  proveedores,
+  productos,
+  metodosPago,
+  tiposMoneda,
+  crearProductoMutation,
+  crearTipoServicioMutation,
+  crearMetodoPagoMutation,
+} = useLicenciasCatalogos()
+
+// ── Licencias ───────────────────────────────────────────────────────────────
+const {
+  licencias,
+  totalLicencias,
+  totalPaginas: totalPaginasLicencias,
+  kpisBackend,
+  crearLicenciaMutation,
+  actualizarLicenciaMutation,
+} = useLicencias(paginaActualLicencias, porPaginaLicencias)
+
+// ── Tipos revisión ──────────────────────────────────────────────────────────
+const { tiposRevision } = useTiposRevision()
+
+// Inicializar revTipo con el primer tipo disponible
+const revTipo = ref("")
+watch(tiposRevision, (tipos) => {
+  if (tipos.length > 0 && !revTipo.value) revTipo.value = tipos[0].id
+}, { immediate: true })
+
+// ── Revisiones ──────────────────────────────────────────────────────────────
+const {
+  revisiones,
+  totalRevisiones,
+  totalPaginas: totalPaginasRevisiones,
+  agregarRevisionMutation,
+  eliminarRevisionMutation,
+} = useRevisiones(paginaActualRevisiones, porPaginaRevisiones)
+
+// ── Versiones ───────────────────────────────────────────────────────────────
+const {
+  versiones,
+  totalVersiones,
+  totalPaginas: totalPaginasVersiones,
+  agregarVersionMutation,
+  eliminarVersionMutation,
+} = useVersiones(paginaActualVersiones, porPaginaVersiones)
+
+// ── Estado formulario revisiones ────────────────────────────────────────────
 const revFecha = ref(new Date().toISOString().slice(0, 10));
-const revTipo = ref(""); // Ahora será el ID del tipo
 const revObservaciones = ref("");
 
-// Estados versiones
-const versiones = ref([]);
+// ── Estado formulario versiones ─────────────────────────────────────────────
 const versionFecha = ref(new Date().toISOString().slice(0, 10));
 const versionNumero = ref("");
 const versionDescripcion = ref("");
 
-// Paginación versiones
-const paginaActualVersiones = ref(1);
-const totalPaginasVersiones = ref(1);
-const totalVersiones = ref(0);
-const porPaginaVersiones = 5;
-
+// ── Estado UI ────────────────────────────────────────────────────────────────
 const selectedId = ref(null);
 const modal = ref({ open: false, mode: "edit", licenseId: null });
 const openRevisiones = ref(false);
@@ -833,7 +857,7 @@ const openVersiones = ref(false);
 const modalDraft = ref(null);
 const historialLicencia = ref([]);
 
-// Estados formulario
+// Estados formulario modal
 const productoSelect = ref("");
 const nuevoProducto = ref("");
 const tipoServicioSelect = ref("");
@@ -842,35 +866,22 @@ const metodoPagoSelect = ref("");
 const nuevoMetodoPago = ref("");
 const tipoMonedaSelect = ref("");
 
-// Estados búsqueda de proveedor
+// Estado búsqueda de proveedor
 const proveedorBusqueda = ref("");
 const mostrarDropdownProveedor = ref(false);
 const proveedorInputRef = ref(null);
-const posicionDropdown = ref({
-  position: 'fixed',
-  top: '0px',
-  left: '0px',
-  width: '0px',
-  zIndex: 99999
-});
+const posicionDropdown = ref({ position: 'fixed', top: '0px', left: '0px', width: '0px', zIndex: 99999 });
 
-// Computed para filtrar proveedores
 const proveedoresFiltrados = computed(() => {
   const query = proveedorBusqueda.value.toLowerCase().trim();
-  if (!query) return proveedores.value.slice(0, 50); // Limitar a 50 iniciales
+  if (!query) return proveedores.value.slice(0, 50);
   return proveedores.value.filter(p => p.nombre.toLowerCase().includes(query)).slice(0, 50);
 });
 
-// Función para filtrar proveedores (para @input)
-function filtrarProveedores() {
-  // El computed se actualiza automáticamente, solo disparamos aquí si es necesario
-  // En este caso, el computed ya maneja el filtrado
-}
+function filtrarProveedores() {}
 
-// Función para calcular posición del dropdown
 function actualizarPosicionDropdown() {
   if (!proveedorInputRef.value) return;
-  
   const rect = proveedorInputRef.value.getBoundingClientRect();
   posicionDropdown.value = {
     position: 'fixed',
@@ -880,12 +891,11 @@ function actualizarPosicionDropdown() {
   };
 }
 
-// Función para ocultar dropdown con delay (similar a ActivoForm.vue)
 function ocultarDropdownProveedor() {
   setTimeout(() => { mostrarDropdownProveedor.value = false; }, 150);
 }
 
-// Estados dashboard
+// Estado dashboard
 const q = ref("");
 const filtroEstado = ref("all");
 const ocultarBajas = ref(true);
@@ -902,458 +912,136 @@ function showToast(msg) {
   setTimeout(() => (toast.value.show = false), 2200);
 }
 
-// Watchers para el formulario
+// Watchers para sincronizar selects del formulario
 watch(() => modalDraft.value?.productoId, (v) => {
   if (productoSelect.value !== "__new__") productoSelect.value = v || "";
 });
-
 watch(productoSelect, (v) => {
   if (!modalDraft.value || v === "__new__") return;
-  const productoId = parseInt(v);
-  modalDraft.value.productoId = productoId || null;
-  
-  // Actualizar también el nombre para mostrar
-  const producto = productos.value.find(p => p.id === productoId);
-  modalDraft.value.producto = producto?.nombre || "";
+  const id = parseInt(v);
+  modalDraft.value.productoId = id || null;
+  const p = productos.value.find(x => x.id === id);
+  modalDraft.value.producto = p?.nombre || "";
 });
-
-// Watchers para tipo de servicio
 watch(() => modalDraft.value?.tipoServicioId, (v) => {
   if (tipoServicioSelect.value !== "__new__") tipoServicioSelect.value = v || "";
 });
-
 watch(tipoServicioSelect, (v) => {
   if (!modalDraft.value || v === "__new__") return;
-  const tipoServicioId = parseInt(v);
-  modalDraft.value.tipoServicioId = tipoServicioId || null;
-  
-  const tipoServicio = tiposServicio.value.find(t => t.id === tipoServicioId);
-  modalDraft.value.tipoServicio = tipoServicio?.nombre || "";
+  const id = parseInt(v);
+  modalDraft.value.tipoServicioId = id || null;
+  const t = tiposServicio.value.find(x => x.id === id);
+  modalDraft.value.tipoServicio = t?.nombre || "";
 });
-
-// Watchers para método de pago
 watch(() => modalDraft.value?.metodoPagoId, (v) => {
   if (metodoPagoSelect.value !== "__new__") metodoPagoSelect.value = v || "";
 });
-
 watch(metodoPagoSelect, (v) => {
   if (!modalDraft.value || v === "__new__") return;
-  const metodoPagoId = parseInt(v);
-  modalDraft.value.metodoPagoId = metodoPagoId || null;
-  
-  const metodoPago = metodosPago.value.find(m => m.id === metodoPagoId);
-  modalDraft.value.metodoPago = metodoPago?.nombre || "";
+  const id = parseInt(v);
+  modalDraft.value.metodoPagoId = id || null;
+  const m = metodosPago.value.find(x => x.id === id);
+  modalDraft.value.metodoPago = m?.nombre || "";
 });
-
-// Watchers para tipo de moneda
-watch(() => modalDraft.value?.tipoMonedaId, (v) => {
-  tipoMonedaSelect.value = v || "";
-});
-
+watch(() => modalDraft.value?.tipoMonedaId, (v) => { tipoMonedaSelect.value = v || ""; });
 watch(tipoMonedaSelect, (v) => {
   if (!modalDraft.value) return;
-  const tipoMonedaId = parseInt(v);
-  modalDraft.value.tipoMonedaId = tipoMonedaId || null;
+  modalDraft.value.tipoMonedaId = parseInt(v) || null;
 });
 
-// ===================================================
-// FUNCIONES PARA CARGAR DATOS DESDE EL BACKEND
-// ===================================================
-
-async function cargarCatalogos() {
-  try {
-    const resTipos = await axios.post(
-      `${apiUrl}/licencias/catalogos/tipos-servicio`,
-      {},
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-    if (resTipos.status === 200) {
-      tiposServicio.value = resTipos.data.data; // Guardar objetos completos {id, nombre}
-    }
-
-    const resProv = await axios.post(
-      `${apiUrl}/licencias/catalogos/proveedores`,
-      {},
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-    if (resProv.status === 200) {
-      proveedores.value = resProv.data.data; // Guardar objetos completos {id, nombre}
-    }
-
-    const resProd = await axios.post(
-      `${apiUrl}/licencias/catalogos/productos-servicios`,
-      {},
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-    if (resProd.status === 200) {
-      productos.value = resProd.data.data; // Guardar objetos completos {id, nombre}
-    }
-
-    const resMet = await axios.post(
-      `${apiUrl}/licencias/catalogos/metodos-pago`,
-      {},
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-    if (resMet.status === 200) {
-      metodosPago.value = resMet.data.data; // Guardar objetos completos {id, nombre}
-    }
-
-    const resMon = await axios.post(
-      `${apiUrl}/licencias/catalogos/tipos-moneda`,
-      {},
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-    if (resMon.status === 200) {
-      tiposMoneda.value = resMon.data.data; // Guardar objetos completos {id, codigo, nombre, simbolo}
-    }
-  } catch (error) {
-    console.error("Error cargando catálogos:", error);
-    showToast("Error cargando catálogos del servidor.");
-  }
+// ── Paginación licencias ─────────────────────────────────────────────────────
+function irPaginaLicencias(p) {
+  if (p >= 1 && p <= totalPaginasLicencias.value) paginaActualLicencias.value = p;
 }
-
-async function cargarLicencias() {
-  try {
-    const response = await axios.post(
-      `${apiUrl}/licencias/obtener?page=${paginaActualLicencias.value}&per_page=${porPaginaLicencias}`,
-      { incluir_bajas: true },
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-    if (response.status === 200) {
-      const resultado = response.data.data;
-      licencias.value = resultado.licencias;
-      totalLicencias.value = resultado.total;
-      totalPaginasLicencias.value = resultado.total_pages;
-      
-      // Actualizar KPIs desde backend
-      if (resultado.kpis) {
-        kpisBackend.value = resultado.kpis;
-      }
-    }
-  } catch (error) {
-    console.error("Error cargando licencias:", error);
-    showToast("Error cargando licencias del servidor.");
-  }
-}
-
-// Funciones de paginación licencias
-function irPaginaLicencias(pagina) {
-  if (pagina >= 1 && pagina <= totalPaginasLicencias.value) {
-    paginaActualLicencias.value = pagina;
-    cargarLicencias();
-  }
-}
-
-function paginaAnteriorLicencias() {
-  if (paginaActualLicencias.value > 1) {
-    paginaActualLicencias.value--;
-    cargarLicencias();
-  }
-}
-
+function paginaAnteriorLicencias() { if (paginaActualLicencias.value > 1) paginaActualLicencias.value--; }
 function paginaSiguienteLicencias() {
-  if (paginaActualLicencias.value < totalPaginasLicencias.value) {
-    paginaActualLicencias.value++;
-    cargarLicencias();
-  }
+  if (paginaActualLicencias.value < totalPaginasLicencias.value) paginaActualLicencias.value++;
 }
 
-// ===================================================
-// FUNCIONES PARA REVISIONES GENERALES
-// ===================================================
-
-async function cargarTiposRevision() {
-  try {
-    const response = await axios.post(
-      `${apiUrl}/licencias/tipos-revision`,
-      {},
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-    if (response.status === 200) {
-      tiposRevision.value = response.data.data;
-      // Seleccionar el primer tipo por defecto si existe
-      if (tiposRevision.value.length > 0 && !revTipo.value) {
-        revTipo.value = tiposRevision.value[0].id;
-      }
-    }
-  } catch (error) {
-    console.error("Error cargando tipos de revisión:", error);
-  }
+// ── Paginación revisiones ────────────────────────────────────────────────────
+function irPaginaRevisiones(p) {
+  if (p >= 1 && p <= totalPaginasRevisiones.value) paginaActualRevisiones.value = p;
 }
-
-async function cargarRevisiones() {
-  try {
-    const response = await axios.post(
-      `${apiUrl}/licencias/revisiones/obtener?page=${paginaActualRevisiones.value}&per_page=${porPaginaRevisiones}`,
-      {},
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-    if (response.status === 200) {
-      const resultado = response.data.data;
-      revisiones.value = resultado.revisiones;
-      totalRevisiones.value = resultado.total;
-      totalPaginasRevisiones.value = resultado.total_pages;
-    }
-  } catch (error) {
-    console.error("Error cargando revisiones:", error);
-  }
-}
-
-// Funciones de paginación revisiones
-function irPaginaRevisiones(pagina) {
-  if (pagina >= 1 && pagina <= totalPaginasRevisiones.value) {
-    paginaActualRevisiones.value = pagina;
-    cargarRevisiones();
-  }
-}
-
-function paginaAnteriorRevisiones() {
-  if (paginaActualRevisiones.value > 1) {
-    paginaActualRevisiones.value--;
-    cargarRevisiones();
-  }
-}
-
+function paginaAnteriorRevisiones() { if (paginaActualRevisiones.value > 1) paginaActualRevisiones.value--; }
 function paginaSiguienteRevisiones() {
-  if (paginaActualRevisiones.value < totalPaginasRevisiones.value) {
-    paginaActualRevisiones.value++;
-    cargarRevisiones();
-  }
+  if (paginaActualRevisiones.value < totalPaginasRevisiones.value) paginaActualRevisiones.value++;
 }
 
 async function agregarRevisionGlobal() {
   if (!revFecha.value || !revTipo.value || !revObservaciones.value.trim()) {
-    showToast("Por favor completa todos los campos de la revisión.");
-    return;
+    showToast("Por favor completa todos los campos de la revisión."); return;
   }
-
   try {
-    const response = await axios.post(
-      `${apiUrl}/licencias/revisiones/crear`,
-      {
-        fecha: revFecha.value,
-        tipo_revision_id: revTipo.value,
-        observaciones: revObservaciones.value,
-        usuario: usuarioActual.value
-      },
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-
-    if (response.status === 201) {
-      showToast("Revisión guardada exitosamente.");
-      // Limpiar formulario
-      revFecha.value = new Date().toISOString().slice(0, 10);
-      revTipo.value = tiposRevision.value[0]?.id || "";
-      revObservaciones.value = "";
-      // Recargar revisiones
-      paginaActualRevisiones.value = 1; // Ir a primera página para ver la nueva
-      await cargarRevisiones();
-    }
-  } catch (error) {
-    console.error("Error guardando revisión:", error);
+    await agregarRevisionMutation.mutateAsync({
+      fecha: revFecha.value,
+      tipo_revision_id: revTipo.value,
+      observaciones: revObservaciones.value,
+      usuario: usuarioActual.value,
+    })
+    showToast("Revisión guardada exitosamente.");
+    revFecha.value = new Date().toISOString().slice(0, 10);
+    revTipo.value = tiposRevision.value[0]?.id || "";
+    revObservaciones.value = "";
+    paginaActualRevisiones.value = 1;
+  } catch {
     showToast("Error al guardar la revisión.");
   }
 }
 
 async function eliminarRevisionGlobal(id) {
   if (!confirm("¿Estás seguro de eliminar esta revisión?")) return;
-
   try {
-    const response = await axios.put(
-      `${apiUrl}/licencias/revisiones/eliminar`,
-      {
-        revision_id: id
-      },
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-
-    if (response.status === 200) {
-      showToast("Revisión eliminada.");
-      
-      // Si eliminamos el último registro de una página que no es la primera,
-      // volver a la página anterior
-      if (revisiones.value.length === 1 && paginaActualRevisiones.value > 1) {
-        paginaActualRevisiones.value--;
-      }
-      
-      await cargarRevisiones();
-    }
-  } catch (error) {
-    console.error("Error eliminando revisión:", error);
+    if (revisiones.value.length === 1 && paginaActualRevisiones.value > 1) paginaActualRevisiones.value--;
+    await eliminarRevisionMutation.mutateAsync(id)
+    showToast("Revisión eliminada.");
+  } catch {
     showToast("Error al eliminar la revisión.");
   }
 }
 
 function prefillHoy() {
-  // revFecha.value = new Date().toISOString().slice(0, 10);
   revObservaciones.value = "Hoy revisé el control de licencias.";
 }
 
-// ===================================================
-// FUNCIONES PARA VERSIONES
-// ===================================================
-
-async function cargarVersiones() {
-  try {
-    const response = await axios.post(
-      `${apiUrl}/licencias/versiones/obtener?page=${paginaActualVersiones.value}&per_page=${porPaginaVersiones}`,
-      {},
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-    if (response.status === 200) {
-      const resultado = response.data.data;
-      versiones.value = resultado.versiones;
-      totalVersiones.value = resultado.total;
-      totalPaginasVersiones.value = resultado.total_pages;
-    }
-  } catch (error) {
-    console.error("Error cargando versiones:", error);
-  }
+// ── Paginación versiones ─────────────────────────────────────────────────────
+function irPaginaVersiones(p) {
+  if (p >= 1 && p <= totalPaginasVersiones.value) paginaActualVersiones.value = p;
 }
-
-// Funciones de paginación versiones
-function irPaginaVersiones(pagina) {
-  if (pagina >= 1 && pagina <= totalPaginasVersiones.value) {
-    paginaActualVersiones.value = pagina;
-    cargarVersiones();
-  }
-}
-
-function paginaAnteriorVersiones() {
-  if (paginaActualVersiones.value > 1) {
-    paginaActualVersiones.value--;
-    cargarVersiones();
-  }
-}
-
+function paginaAnteriorVersiones() { if (paginaActualVersiones.value > 1) paginaActualVersiones.value--; }
 function paginaSiguienteVersiones() {
-  if (paginaActualVersiones.value < totalPaginasVersiones.value) {
-    paginaActualVersiones.value++;
-    cargarVersiones();
-  }
+  if (paginaActualVersiones.value < totalPaginasVersiones.value) paginaActualVersiones.value++;
 }
 
 async function agregarVersion() {
   if (!versionFecha.value || !versionNumero.value.trim() || !versionDescripcion.value.trim()) {
-    showToast("Por favor completa todos los campos de la versión.");
-    return;
+    showToast("Por favor completa todos los campos de la versión."); return;
   }
-
   try {
-    const response = await axios.post(
-      `${apiUrl}/licencias/versiones/crear`,
-      {
-        fecha: versionFecha.value,
-        version: versionNumero.value,
-        descripcion: versionDescripcion.value
-      },
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-
-    if (response.status === 201) {
-      showToast("Versión guardada exitosamente.");
-      // Limpiar formulario
-      versionFecha.value = new Date().toISOString().slice(0, 10);
-      versionNumero.value = "";
-      versionDescripcion.value = "";
-      // Recargar versiones
-      paginaActualVersiones.value = 1; // Ir a primera página para ver la nueva
-      await cargarVersiones();
-    }
-  } catch (error) {
-    console.error("Error guardando versión:", error);
+    await agregarVersionMutation.mutateAsync({
+      fecha: versionFecha.value,
+      version: versionNumero.value,
+      descripcion: versionDescripcion.value,
+    })
+    showToast("Versión guardada exitosamente.");
+    versionFecha.value = new Date().toISOString().slice(0, 10);
+    versionNumero.value = "";
+    versionDescripcion.value = "";
+    paginaActualVersiones.value = 1;
+  } catch {
     showToast("Error al guardar la versión.");
   }
 }
 
 async function eliminarVersion(id) {
   if (!confirm("¿Estás seguro de eliminar esta versión?")) return;
-
   try {
-    const response = await axios.put(
-      `${apiUrl}/licencias/versiones/eliminar`,
-      {
-        version_id: id
-      },
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-
-    if (response.status === 200) {
-      showToast("Versión eliminada.");
-      
-      // Si eliminamos el último registro de una página que no es la primera,
-      // volver a la página anterior
-      if (versiones.value.length === 1 && paginaActualVersiones.value > 1) {
-        paginaActualVersiones.value--;
-      }
-      
-      await cargarVersiones();
-    }
-  } catch (error) {
-    console.error("Error eliminando versión:", error);
+    if (versiones.value.length === 1 && paginaActualVersiones.value > 1) paginaActualVersiones.value--;
+    await eliminarVersionMutation.mutateAsync(id)
+    showToast("Versión eliminada.");
+  } catch {
     showToast("Error al eliminar la versión.");
   }
 }
-
-onMounted(() => {
-  cargarCatalogos();
-  cargarLicencias();
-  cargarTiposRevision();
-  cargarRevisiones();
-  cargarVersiones();
-});
 
 // ===================================================
 // FUNCIONES KPI
@@ -1389,17 +1077,10 @@ function stateOfKpi(lic) {
   return "green";
 }
 
-function anualizarValor(lic) {
-  const val = Number(lic.valor || 0);
-  if ((lic.frecuencia || "").toLowerCase() === "mensual") return val * 12;
-  return val;
-}
-
 const kpiTotal = computed(() => kpisBackend.value.total);
 const kpiRed = computed(() => kpisBackend.value.criticas);
 const kpiYellow = computed(() => kpisBackend.value.proximas);
 const kpiGreen = computed(() => kpisBackend.value.vigentes);
-
 const kpiAnualTotal = computed(() => kpisBackend.value.costo_anual_total);
 
 // ===================================================
@@ -1533,14 +1214,12 @@ function abrirEdicion(id) {
   modal.value = { open: true, mode: "edit", licenseId: id };
   modalDraft.value = cloneSafe(lic);
   
-  // Establecer el nombre del proveedor en la búsqueda
   proveedorBusqueda.value = modalDraft.value.proveedor || "";
   productoSelect.value = modalDraft.value.productoId || "";
   tipoServicioSelect.value = modalDraft.value.tipoServicioId || "";
   metodoPagoSelect.value = modalDraft.value.metodoPagoId || "";
   tipoMonedaSelect.value = modalDraft.value.tipoMonedaId || "";
   
-  // Usar el historial que ya viene en los datos de la licencia
   historialLicencia.value = lic.historial || [];
 }
 
@@ -1548,13 +1227,11 @@ function crearNuevaLicencia() {
   modal.value = { open: true, mode: "create", licenseId: null };
   historialLicencia.value = [];
   
-  // Obtener el primer tipo de servicio (Licencia) por defecto
   const tipoLicenciaDefault = tiposServicio.value.find(t => t.nombre === "Licencia");
   const metodoPSEDefault = metodosPago.value.find(m => m.nombre === "Renovación PSE");
   const tipoCOPDefault = tiposMoneda.value.find(m => m.codigo === "COP");
   
   modalDraft.value = {
-    // No se envía ID, se genera automáticamente en el backend
     tipoServicioId: tipoLicenciaDefault?.id || null,
     tipoServicio: tipoLicenciaDefault?.nombre || "",
     proveedorId: null,
@@ -1577,7 +1254,6 @@ function crearNuevaLicencia() {
     historial: [],
   };
   
-  // Limpiar búsqueda de proveedor
   proveedorBusqueda.value = "";
   productoSelect.value = "";
   tipoServicioSelect.value = "";
@@ -1593,7 +1269,6 @@ function cerrarModal() {
   openBaja.value = false;
   motivoBajaDraft.value = "";
   
-  // Limpiar búsquedas
   proveedorBusqueda.value = "";
   productoSelect.value = "";
   nuevoProducto.value = "";
@@ -1603,8 +1278,6 @@ function cerrarModal() {
   nuevoMetodoPago.value = "";
   tipoMonedaSelect.value = "";
 }
-
-
 
 const fechaError = computed(() => {
   if (!modalDraft.value) return "";
@@ -1639,68 +1312,24 @@ function buildHistDiff(before, after) {
   return cambios;
 }
 
-function pushHistorial(lic, entry) {
-  if (!lic.historial) lic.historial = [];
-  lic.historial.unshift(entry);
-}
-
 async function guardarDesdeModal(payload) {
   try {
     if (modal.value.mode === "create") {
-      // Crear nueva licencia en el backend
-      const response = await axios.post(
-        `${apiUrl}/licencias/crear`,
-        payload,
-        {
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-          }
-        }
-      );
-
-      if (response.status === 201) {
-        showToast(response.data.message || "Licencia creada exitosamente.");
-        cerrarModal();
-        // Recargar la lista de licencias para obtener los datos actualizados
-        await cargarLicencias();
-        return;
-      } else {
-        showToast("Error al crear la licencia.");
-      }
+      await crearLicenciaMutation.mutateAsync(payload)
+      showToast("Licencia creada exitosamente.");
+      cerrarModal();
     } else {
-      // Actualizar licencia existente en el backend
-      const response = await axios.put(
-        `${apiUrl}/licencias/actualizar/${payload.id}`,
-        payload,
-        {
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-          }
-        }
-      );
-
-      if (response.status === 200) {
-        showToast(response.data.message || "Licencia actualizada exitosamente.");
-        
-        // Recargar la lista de licencias para obtener los datos actualizados
-        await cargarLicencias();
-        
-        // Actualizar historial desde los datos recargados
-        const licenciaActualizada = licencias.value.find(l => l.id === payload.id);
-        if (licenciaActualizada?.historial) {
-          historialLicencia.value = licenciaActualizada.historial;
-        }
-        
-        cerrarModal();
-        return;
-      } else {
-        showToast("Error al actualizar la licencia.");
-      }
+      await actualizarLicenciaMutation.mutateAsync({ id: payload.id, payload })
+      showToast("Licencia actualizada exitosamente.");
+      
+      // Actualizar historial desde datos recargados
+      await new Promise(r => setTimeout(r, 100)) // pequeña espera para que el cache se actualice
+      const licActualizada = licencias.value.find(l => l.id === payload.id);
+      if (licActualizada?.historial) historialLicencia.value = licActualizada.historial;
+      
+      cerrarModal();
     }
   } catch (error) {
-    console.error("Error guardando licencia:", error);
     showToast("Error al guardar. " + (error.response?.data?.message || error.message));
   }
 }
@@ -1718,36 +1347,17 @@ async function confirmarBaja() {
       motivoBaja: (motivoBajaDraft.value || "Sin motivo").trim(),
     };
 
-    const response = await axios.put(
-      `${apiUrl}/licencias/actualizar/${lic.id}`,
-      payload,
-      {
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        }
-      }
-    );
-
-    if (response.status === 200) {
-      showToast("Servicio marcado como baja.");
-      openBaja.value = false;
-      motivoBajaDraft.value = "";
-      
-      // Recargar la lista de licencias
-      await cargarLicencias();
-      
-      // Actualizar el modalDraft y el historial desde los datos recargados
-      const licenciaActualizada = licencias.value.find(l => l.id === lic.id);
-      if (licenciaActualizada) {
-        modalDraft.value = cloneSafe(licenciaActualizada);
-        historialLicencia.value = licenciaActualizada.historial || [];
-      }
-    } else {
-      showToast("Error al dar de baja el servicio.");
+    await actualizarLicenciaMutation.mutateAsync({ id: lic.id, payload })
+    showToast("Servicio marcado como baja.");
+    openBaja.value = false;
+    motivoBajaDraft.value = "";
+    
+    const licActualizada = licencias.value.find(l => l.id === lic.id);
+    if (licActualizada) {
+      modalDraft.value = cloneSafe(licActualizada);
+      historialLicencia.value = licActualizada.historial || [];
     }
   } catch (error) {
-    console.error("Error dando de baja:", error);
     showToast("Error al dar de baja. " + (error.response?.data?.message || error.message));
   }
 }
@@ -1757,41 +1367,16 @@ async function reactivarServicio() {
   if (!lic) return;
 
   try {
-    const payload = {
-      ...lic,
-      baja: 0,
-      fechaBaja: null,
-      motivoBaja: null,
-    };
-
-    const response = await axios.put(
-      `${apiUrl}/licencias/actualizar/${lic.id}`,
-      payload,
-      {
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        }
-      }
-    );
-
-    if (response.status === 200) {
-      showToast("Servicio reactivado.");
-      
-      // Recargar la lista de licencias
-      await cargarLicencias();
-      
-      // Actualizar el modalDraft y el historial desde los datos recargados
-      const licenciaActualizada = licencias.value.find(l => l.id === lic.id);
-      if (licenciaActualizada) {
-        modalDraft.value = cloneSafe(licenciaActualizada);
-        historialLicencia.value = licenciaActualizada.historial || [];
-      }
-    } else {
-      showToast("Error al reactivar el servicio.");
+    const payload = { ...lic, baja: 0, fechaBaja: null, motivoBaja: null };
+    await actualizarLicenciaMutation.mutateAsync({ id: lic.id, payload })
+    showToast("Servicio reactivado.");
+    
+    const licActualizada = licencias.value.find(l => l.id === lic.id);
+    if (licActualizada) {
+      modalDraft.value = cloneSafe(licActualizada);
+      historialLicencia.value = licActualizada.historial || [];
     }
   } catch (error) {
-    console.error("Error reactivando servicio:", error);
     showToast("Error al reactivar. " + (error.response?.data?.message || error.message));
   }
 }
@@ -1802,7 +1387,6 @@ async function reactivarServicio() {
 
 function seleccionarProveedor(proveedor) {
   if (!modalDraft.value) return;
-  
   modalDraft.value.proveedorId = proveedor.id;
   modalDraft.value.proveedor = proveedor.nombre;
   proveedorBusqueda.value = proveedor.nombre;
@@ -1812,46 +1396,26 @@ function seleccionarProveedor(proveedor) {
 async function agregarProducto(nombre) {
   const clean = (nombre || "").trim();
   if (!clean) return;
-  
   try {
-    const response = await axios.post(
-      `${apiUrl}/licencias/catalogos/productos-servicios/crear`,
-      { nombre: clean },
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-    
-    if (response.status === 201 || response.status === 200) {
-      // Recargar la lista de productos para obtener el ID correcto
-      await cargarCatalogos();
-      
-      // Buscar el producto recién creado
-      const nuevoProducto = productos.value.find(p => p.nombre === clean);
-      
-      if (nuevoProducto && modalDraft.value) {
-        modalDraft.value.productoId = nuevoProducto.id;
-        modalDraft.value.producto = nuevoProducto.nombre;
-        productoSelect.value = nuevoProducto.id;
-      }
-      
-      showToast(response.data.message || "Producto/servicio creado.");
-      return nuevoProducto;
-    } else {
-      showToast("Error al crear producto/servicio.");
+    await crearProductoMutation.mutateAsync(clean)
+    // Esperar a que el cache se invalide y recargue
+    await new Promise(r => setTimeout(r, 200))
+    const nuevo = productos.value.find(p => p.nombre === clean);
+    if (nuevo && modalDraft.value) {
+      modalDraft.value.productoId = nuevo.id;
+      modalDraft.value.producto = nuevo.nombre;
+      productoSelect.value = nuevo.id;
     }
-  } catch (error) {
-    console.error("Error creando producto/servicio:", error);
-    showToast("Error al conectar con el servidor.");
+    showToast("Producto/servicio creado.");
+    return nuevo;
+  } catch {
+    showToast("Error al crear producto/servicio.");
   }
 }
 
 async function crearProducto() {
   const name = nuevoProducto.value.trim();
   if (!name) return;
-  
   await agregarProducto(name);
   nuevoProducto.value = "";
 }
@@ -1859,44 +1423,25 @@ async function crearProducto() {
 async function agregarTipoServicio(nombre) {
   const clean = (nombre || "").trim();
   if (!clean) return;
-  
   try {
-    const response = await axios.post(
-      `${apiUrl}/licencias/catalogos/tipos-servicio/crear`,
-      { nombre: clean },
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-    
-    if (response.status === 201 || response.status === 200) {
-      await cargarCatalogos();
-      
-      const nuevoTipo = tiposServicio.value.find(t => t.nombre === clean);
-      
-      if (nuevoTipo && modalDraft.value) {
-        modalDraft.value.tipoServicioId = nuevoTipo.id;
-        modalDraft.value.tipoServicio = nuevoTipo.nombre;
-        tipoServicioSelect.value = nuevoTipo.id;
-      }
-      
-      showToast(response.data.message || "Tipo de servicio creado.");
-      return nuevoTipo;
-    } else {
-      showToast("Error al crear tipo de servicio.");
+    await crearTipoServicioMutation.mutateAsync(clean)
+    await new Promise(r => setTimeout(r, 200))
+    const nuevo = tiposServicio.value.find(t => t.nombre === clean);
+    if (nuevo && modalDraft.value) {
+      modalDraft.value.tipoServicioId = nuevo.id;
+      modalDraft.value.tipoServicio = nuevo.nombre;
+      tipoServicioSelect.value = nuevo.id;
     }
-  } catch (error) {
-    console.error("Error creando tipo de servicio:", error);
-    showToast("Error al conectar con el servidor.");
+    showToast("Tipo de servicio creado.");
+    return nuevo;
+  } catch {
+    showToast("Error al crear tipo de servicio.");
   }
 }
 
 async function crearTipoServicio() {
   const name = nuevoTipoServicio.value.trim();
   if (!name) return;
-  
   await agregarTipoServicio(name);
   nuevoTipoServicio.value = "";
 }
@@ -1904,44 +1449,25 @@ async function crearTipoServicio() {
 async function agregarMetodoPago(nombre) {
   const clean = (nombre || "").trim();
   if (!clean) return;
-  
   try {
-    const response = await axios.post(
-      `${apiUrl}/licencias/catalogos/metodos-pago/crear`,
-      { nombre: clean },
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    );
-    
-    if (response.status === 201 || response.status === 200) {
-      await cargarCatalogos();
-      
-      const nuevoMetodo = metodosPago.value.find(m => m.nombre === clean);
-      
-      if (nuevoMetodo && modalDraft.value) {
-        modalDraft.value.metodoPagoId = nuevoMetodo.id;
-        modalDraft.value.metodoPago = nuevoMetodo.nombre;
-        metodoPagoSelect.value = nuevoMetodo.id;
-      }
-      
-      showToast(response.data.message || "Método de pago creado.");
-      return nuevoMetodo;
-    } else {
-      showToast("Error al crear método de pago.");
+    await crearMetodoPagoMutation.mutateAsync(clean)
+    await new Promise(r => setTimeout(r, 200))
+    const nuevo = metodosPago.value.find(m => m.nombre === clean);
+    if (nuevo && modalDraft.value) {
+      modalDraft.value.metodoPagoId = nuevo.id;
+      modalDraft.value.metodoPago = nuevo.nombre;
+      metodoPagoSelect.value = nuevo.id;
     }
-  } catch (error) {
-    console.error("Error creando método de pago:", error);
-    showToast("Error al conectar con el servidor.");
+    showToast("Método de pago creado.");
+    return nuevo;
+  } catch {
+    showToast("Error al crear método de pago.");
   }
 }
 
 async function crearMetodoPago() {
   const name = nuevoMetodoPago.value.trim();
   if (!name) return;
-  
   await agregarMetodoPago(name);
   nuevoMetodoPago.value = "";
 }
@@ -1963,24 +1489,16 @@ function humanValue(v) {
 
 function formatFechaHistorial(fecha) {
   if (!fecha) return "—";
-  // Si es un string ISO, lo formateamos
-  if (typeof fecha === 'string') {
-    return fecha.replace("T", " ").slice(0, 19);
-  }
+  if (typeof fecha === 'string') return fecha.replace("T", " ").slice(0, 19);
   return String(fecha);
 }
 
 function parseCambios(cambiosStr) {
   if (!cambiosStr) return {};
   try {
-    // Si es string JSON, parsearlo
-    if (typeof cambiosStr === 'string') {
-      return JSON.parse(cambiosStr);
-    }
-    // Si ya es objeto, devolverlo
+    if (typeof cambiosStr === 'string') return JSON.parse(cambiosStr);
     return cambiosStr;
   } catch (e) {
-    console.error("Error parseando cambios:", e);
     return {};
   }
 }
@@ -1988,7 +1506,6 @@ function parseCambios(cambiosStr) {
 function formatValor(valor) {
   if (valor === null || valor === undefined || valor === "") return "—";
   if (typeof valor === "boolean") return valor ? "Sí" : "No";
-  if (typeof valor === "number") return String(valor);
   return String(valor);
 }
 
@@ -2000,26 +1517,19 @@ function formatCurrencyCOP(n) {
 async function descargarExcel() {
   try {
     showToast("Generando Excel...");
-    
-    // Preparar filtros actuales
     const filtros = {
-      incluirBajas: !ocultarBajas.value, // Invertir la lógica: ocultarBajas=true significa incluirBajas=false
+      incluirBajas: !ocultarBajas.value,
       proveedorId: fProveedor.value || null,
       tipoServicioId: fTipoServicio.value || null
     };
-    
     const response = await axios.post(
       `${apiUrl}/licencias/exportar-excel`,
       { filtros },
       {
-        headers: {
-          Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        },
+        headers: { Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
         responseType: 'blob'
       }
     );
-    
-    // Crear enlace de descarga
     const url = window.URL.createObjectURL(new Blob([response.data]));
     const link = document.createElement('a');
     link.href = url;
@@ -2028,10 +1538,8 @@ async function descargarExcel() {
     link.click();
     link.remove();
     window.URL.revokeObjectURL(url);
-    
     showToast("Excel descargado.");
   } catch (error) {
-    console.error("Error descargando Excel:", error);
     showToast("Error al descargar el Excel.");
   }
 }

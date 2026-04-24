@@ -527,9 +527,15 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
-import axios from 'axios'
-import apiUrl from "../../config.js"
+import { ref, computed, watch } from 'vue'
+import {
+  useAniosDisponibles,
+  useCrearAnio,
+  useIndicadores,
+  useAnalisisCausas,
+  useObservacionMes,
+  useTicketsPeriodo,
+} from '../composables/indicadores/useIndicadores.js'
 
 // Props recibidos del componente padre
 const props = defineProps({
@@ -543,114 +549,122 @@ const props = defineProps({
   }
 })
 
-// Emits para comunicar con el componente padre
 const emit = defineEmits(['update:loading', 'update:anios'])
 
-// Año actual o seleccionado
+// ── Estado UI ────────────────────────────────────────────────────────────────
 const anioActual = ref(props.anioProp)
 const mesSeleccionadoFiltro = ref(props.mesProp)
-const cargando = ref(false)
-const datosIndicadores = ref(null)
 
-// Watch para sincronizar props con el estado interno
-watch(() => props.anioProp, (newVal) => {
-  if (newVal) anioActual.value = newVal
-})
+// Sync props → estado interno
+watch(() => props.anioProp, (v) => { if (v) anioActual.value = v })
+watch(() => props.mesProp,  (v) => { mesSeleccionadoFiltro.value = v })
 
-watch(() => props.mesProp, (newVal) => {
-  mesSeleccionadoFiltro.value = newVal
-})
+// ── Años disponibles ─────────────────────────────────────────────────────────
+const { aniosDisponibles, isLoading: cargandoAnios } = useAniosDisponibles()
 
-// Watch para emitir el estado de carga
-watch(cargando, (newVal) => {
-  emit('update:loading', newVal)
-})
+// Cuando lleguen los años, inicializar anioActual si hace falta y emitir
+watch(aniosDisponibles, (anios) => {
+  emit('update:anios', anios)
+  if (anios.length > 0 && !anios.includes(anioActual.value)) {
+    anioActual.value = anios[0]
+  }
+}, { immediate: true })
 
-// Variables para gestión dinámica de años
-const aniosDisponibles = ref([])
+// Modal de creación de año
 const mostrarModalAnio = ref(false)
-const nuevoAnio = ref({
-  anio: null,
-  descripcion: ''
-})
-const guardandoAnio = ref(false)
+const nuevoAnio = ref({ anio: null, descripcion: '' })
+const crearAnioMutation = useCrearAnio()
 
-// Estado para tickets del periodo
-const ticketsPeriodo = ref([])
-const resumenTicketsPeriodo = ref({
-  total: 0,
-  cerrados: 0,
-  en_progreso: 0,
-  abiertos: 0
-})
-const cargandoTickets = ref(false)
+const abrirModalCrearAnio = () => {
+  nuevoAnio.value = { anio: null, descripcion: '' }
+  mostrarModalAnio.value = true
+}
+const cerrarModalAnio = () => {
+  mostrarModalAnio.value = false
+  nuevoAnio.value = { anio: null, descripcion: '' }
+}
+const guardarNuevoAnio = async () => {
+  if (!nuevoAnio.value.anio) { alert('Por favor ingrese un año válido'); return }
+  const anioNum = parseInt(nuevoAnio.value.anio)
+  if (isNaN(anioNum) || anioNum < 1900 || anioNum > 2100) {
+    alert('El año debe ser un número entre 1900 y 2100'); return
+  }
+  try {
+    await crearAnioMutation.mutateAsync({ anio: anioNum, descripcion: nuevoAnio.value.descripcion })
+    alert('Año creado exitosamente')
+    cerrarModalAnio()
+    anioActual.value = anioNum
+  } catch (error) {
+    alert(error.response?.data?.message ?? 'Error al crear el año')
+  }
+}
+const guardandoAnio = computed(() => crearAnioMutation.isPending.value)
+
+// ── Indicadores y análisis de causas ────────────────────────────────────────
+const { meses, datosIndicadores, isLoading: cargando, isFetching } = useIndicadores(anioActual)
+const { accionesList, guardarAnalisisMutation } = useAnalisisCausas(anioActual)
+
+// Emitir estado de carga al padre
+watch(cargando, (v) => emit('update:loading', v))
+
+// ── Tickets del periodo ──────────────────────────────────────────────────────
 const currentPage = ref(1)
 const itemsPerPage = ref(5)
-const totalTickets = ref(0)
-const totalPages = ref(0)
 
-// Datos de ejemplo (se sobrescribirán con datos reales)
-const meses = ref([])
+// Reset de página al cambiar mes
+watch(mesSeleccionadoFiltro, () => { currentPage.value = 1 })
 
-// Función para abrir el modal de observaciones
-const abrirModalObservaciones = async (mes) => {
-  mesSeleccionado.value = mes
-  observacionTexto.value = ''
+const {
+  tickets: ticketsPeriodo,
+  resumen: resumenTicketsPeriodo,
+  pagination,
+  isLoading: cargandoTickets,
+} = useTicketsPeriodo(anioActual, mesSeleccionadoFiltro, currentPage, itemsPerPage)
 
-  try {
-    const response = await axios.post(
-      `${apiUrl}/indicadores/obtener_observacion_mes`,
-      {
-        anio: anioActual.value,
-        mes: mes.mes_numero
-      },
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    )
+const totalTickets = computed(() => pagination.value.total_records)
+const totalPages   = computed(() => pagination.value.total_pages)
 
-    if (response.status === 200 && response.data.data) {
-      observacionTexto.value = response.data.data.observaciones || ''
-    }
-  } catch (error) {
-    console.error('Error cargando observación:', error)
+const cambiarPagina = (nuevaPagina) => {
+  if (nuevaPagina >= 1 && nuevaPagina <= totalPages.value) {
+    currentPage.value = nuevaPagina
   }
-
-  modalObservaciones.value = true
 }
 
-// Función para cerrar el modal
+// ── Modal de observaciones ───────────────────────────────────────────────────
+const modalObservaciones = ref(false)
+const mesSeleccionado    = ref(null)    // objeto mes (tiene .mes_numero)
+const mesNumeroModal     = computed(() => mesSeleccionado.value?.mes_numero ?? null)
+const observacionTexto   = ref('')
+const guardando          = ref(false)
+
+const {
+  observacion: observacionCargada,
+  guardarObservacionMutation,
+} = useObservacionMes(anioActual, mesNumeroModal)
+
+// Cuando se cargue la observación del mes, poblar el textarea
+watch(observacionCargada, (v) => { observacionTexto.value = v })
+
+const abrirModalObservaciones = (mes) => {
+  mesSeleccionado.value = mes
+  observacionTexto.value = ''
+  modalObservaciones.value = true
+}
 const cerrarModal = () => {
   modalObservaciones.value = false
   mesSeleccionado.value = null
   observacionTexto.value = ''
 }
-
-// Función para guardar la observación
 const guardarObservacion = async () => {
   if (!mesSeleccionado.value) return
-
   try {
     guardando.value = true
-    const response = await axios.post(
-      `${apiUrl}/indicadores/guardar_observacion_mes`,
-      {
-        anio: anioActual.value,
-        mes: mesSeleccionado.value.mes_numero,
-        observaciones: observacionTexto.value
-      },
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    )
-
-    if (response.status === 200) {
-      cerrarModal()
-    }
+    await guardarObservacionMutation.mutateAsync({
+      anio: anioActual.value,
+      mes: mesSeleccionado.value.mes_numero,
+      observaciones: observacionTexto.value,
+    })
+    cerrarModal()
   } catch (error) {
     console.error('Error guardando observación:', error)
   } finally {
@@ -658,65 +672,65 @@ const guardarObservacion = async () => {
   }
 }
 
-// Estado del modal de observaciones
-
-const modalObservaciones = ref(false)
-const mesSeleccionado = ref(null)
-const observacionTexto = ref('')
-const guardando = ref(false)
-
-// Estado del modal de análisis de causas
-const modalAnalisis = ref(false)
-const analisisEditando = ref(null)
-const guardandoAnalisis = ref(false)
+// ── Modal de análisis de causas ──────────────────────────────────────────────
+const modalAnalisis      = ref(false)
+const analisisEditando   = ref(null)
+const guardandoAnalisis  = computed(() => guardarAnalisisMutation.isPending.value)
 const formAnalisis = ref({
-  mes: '',
-  analisis: '',
-  acciones: '',
-  responsable: '',
-  fecha_compromiso: '',
-  seguimiento: ''
+  mes: '', analisis: '', acciones: '', responsable: '', fecha_compromiso: '', seguimiento: ''
 })
 
-// Lista de meses para el selector
+const abrirModalAnalisis = (analisis = null) => {
+  analisisEditando.value = analisis
+  formAnalisis.value = analisis
+    ? { mes: analisis.mes, analisis: analisis.analisis ?? '', acciones: analisis.acciones ?? '',
+        responsable: analisis.responsable ?? '', fecha_compromiso: analisis.fecha_compromiso ?? '',
+        seguimiento: analisis.seguimiento ?? '' }
+    : { mes: '', analisis: '', acciones: '', responsable: '', fecha_compromiso: '', seguimiento: '' }
+  modalAnalisis.value = true
+}
+const cerrarModalAnalisis = () => {
+  modalAnalisis.value = false
+  analisisEditando.value = null
+  formAnalisis.value = { mes: '', analisis: '', acciones: '', responsable: '', fecha_compromiso: '', seguimiento: '' }
+}
+const guardarAnalisis = async () => {
+  try {
+    const payload = {
+      anio: anioActual.value,
+      mes: parseInt(formAnalisis.value.mes),
+      analisis: formAnalisis.value.analisis,
+      acciones: formAnalisis.value.acciones,
+      responsable: formAnalisis.value.responsable,
+      fecha_compromiso: formAnalisis.value.fecha_compromiso,
+      seguimiento: formAnalisis.value.seguimiento,
+    }
+    if (analisisEditando.value) payload.id = analisisEditando.value.id
+    await guardarAnalisisMutation.mutateAsync(payload)
+    cerrarModalAnalisis()
+  } catch (error) {
+    console.error('Error guardando análisis:', error)
+    alert(error.response?.data?.message ?? 'Error al guardar el análisis')
+  }
+}
+
+// ── Computed de vista ────────────────────────────────────────────────────────
 const listaMeses = [
-  { numero: 1, nombre: 'Enero' },
-  { numero: 2, nombre: 'Febrero' },
-  { numero: 3, nombre: 'Marzo' },
-  { numero: 4, nombre: 'Abril' },
-  { numero: 5, nombre: 'Mayo' },
-  { numero: 6, nombre: 'Junio' },
-  { numero: 7, nombre: 'Julio' },
-  { numero: 8, nombre: 'Agosto' },
-  { numero: 9, nombre: 'Septiembre' },
-  { numero: 10, nombre: 'Octubre' },
-  { numero: 11, nombre: 'Noviembre' },
-  { numero: 12, nombre: 'Diciembre' }
+  { numero: 1, nombre: 'Enero' }, { numero: 2, nombre: 'Febrero' },
+  { numero: 3, nombre: 'Marzo' }, { numero: 4, nombre: 'Abril' },
+  { numero: 5, nombre: 'Mayo' },  { numero: 6, nombre: 'Junio' },
+  { numero: 7, nombre: 'Julio' }, { numero: 8, nombre: 'Agosto' },
+  { numero: 9, nombre: 'Septiembre' }, { numero: 10, nombre: 'Octubre' },
+  { numero: 11, nombre: 'Noviembre' }, { numero: 12, nombre: 'Diciembre' },
 ]
 
-const acciones_list = ref([])
-
 const porcentajeMeta = computed(() => {
-  if (!datosIndicadores.value || !datosIndicadores.value.indicadores?.length) return null
-  // Tomar el primer mes, ya que es igual para todos|
+  if (!datosIndicadores.value?.indicadores?.length) return null
   return datosIndicadores.value.indicadores[0].porcentaje_meta
 })
-
-const porcentajeMetaDisplay = computed(() => {
-  return porcentajeMeta.value !== null && porcentajeMeta.value !== undefined
-    ? `${porcentajeMeta.value}%`
-    : '—'
-})
-
-// Watcher para cargar tickets cuando cambia el mes seleccionado
-watch(mesSeleccionadoFiltro, (nuevoMes) => {
-  if (nuevoMes) {
-    currentPage.value = 1 // Resetear página al cambiar mes
-    cargarTicketsPeriodo()
-  } else {
-    ticketsPeriodo.value = []
-  }
-})
+const porcentajeMetaDisplay = computed(() =>
+  porcentajeMeta.value != null ? `${porcentajeMeta.value}%` : '—'
+)
 
 const mesesFiltrados = computed(() => {
   if (!meses.value.length) return []
@@ -725,501 +739,121 @@ const mesesFiltrados = computed(() => {
 })
 
 const analisisFiltrados = computed(() => {
-  if (!acciones_list.value) return []
-  if (!mesSeleccionadoFiltro.value) return acciones_list.value
-  
-  // Filtrar por mes seleccionado (comparando números)
-  return acciones_list.value.filter(item => item.mes === mesSeleccionadoFiltro.value)
+  if (!accionesList.value) return []
+  if (!mesSeleccionadoFiltro.value) return accionesList.value
+  return accionesList.value.filter(item => item.mes === mesSeleccionadoFiltro.value)
 })
 
 const totales = computed(() => {
   if (!datosIndicadores.value) {
-    return {
-      totalVencer: 0,
-      cerradasOportunamente: 0,
-      cerradasFueraTiempo: 0,
-      sinRegistrar: 0,
-      indiceCumplimiento: '0%',
-      acumuladoAnio: '0%',
-      meta: porcentajeMetaDisplay.value,
-      totalIngresaron: 0,
-      ticketsAbiertos: 0,
-    }
+    return { totalVencer: 0, cerradasOportunamente: 0, cerradasFueraTiempo: 0, sinRegistrar: 0,
+             indiceCumplimiento: '0%', acumuladoAnio: '0%', meta: porcentajeMetaDisplay.value,
+             totalIngresaron: 0, ticketsAbiertos: 0 }
   }
-
-  // Si hay filtro de mes, calcular totales solo para ese mes
   if (mesSeleccionadoFiltro.value) {
     const mesData = meses.value.find(m => m.mes_numero === mesSeleccionadoFiltro.value)
     if (mesData) {
-      return {
-        totalVencer: mesData.totalVencer,
-        cerradasOportunamente: mesData.cerradasOportunamente,
-        cerradasFueraTiempo: mesData.cerradasFueraTiempo,
-        sinRegistrar: mesData.sinRegistrar,
-        indiceCumplimiento: mesData.indiceCumplimiento,
-        acumuladoAnio: mesData.acumuladoAnio, // Mantener acumulado o mostrar solo del mes? Generalmente acumulado es anual.
-        meta: porcentajeMetaDisplay.value,
-        totalIngresaron: mesData.totalIngresaron,
-        ticketsAbiertos: mesData.ticketsAbiertos,
-      }
+      return { totalVencer: mesData.totalVencer, cerradasOportunamente: mesData.cerradasOportunamente,
+               cerradasFueraTiempo: mesData.cerradasFueraTiempo, sinRegistrar: mesData.sinRegistrar,
+               indiceCumplimiento: mesData.indiceCumplimiento, acumuladoAnio: mesData.acumuladoAnio,
+               meta: porcentajeMetaDisplay.value, totalIngresaron: mesData.totalIngresaron,
+               ticketsAbiertos: mesData.ticketsAbiertos }
     }
   }
-
-  const totals = datosIndicadores.value.totales
-
-  // Calcular la suma de tickets abiertos
-  const sumaTicketsAbiertos = meses.value.reduce((sum, mes) => sum + (mes.ticketsAbiertos || 0), 0)
-
-  return {
-    totalVencer: totals.total_completados,
-    cerradasOportunamente: totals.oportunos,
-    cerradasFueraTiempo: totals.no_oportunos,
-    sinRegistrar: totals.sin_respuesta,
-    indiceCumplimiento: `${totals.porcentaje_global}%`,
-    acumuladoAnio: `${totals.porcentaje_global}%`,
-    meta: porcentajeMetaDisplay.value,
-    totalIngresaron: totals.total_ingresados,
-    ticketsAbiertos: sumaTicketsAbiertos,
-  }
+  const t = datosIndicadores.value.totales
+  const sumaTicketsAbiertos = meses.value.reduce((s, m) => s + (m.ticketsAbiertos ?? 0), 0)
+  return { totalVencer: t.total_completados, cerradasOportunamente: t.oportunos,
+           cerradasFueraTiempo: t.no_oportunos, sinRegistrar: t.sin_respuesta,
+           indiceCumplimiento: `${t.porcentaje_global}%`, acumuladoAnio: `${t.porcentaje_global}%`,
+           meta: porcentajeMetaDisplay.value, totalIngresaron: t.total_ingresados,
+           ticketsAbiertos: sumaTicketsAbiertos }
 })
 
-// Constantes para la gráfica
-
-// Eje Y fijo hasta 20, ticks cada 5
 const maxScale = 20
 const yTicks = [20, 15, 10, 5, 0]
 
-// Función para calcular la altura de las barras basada en la cantidad real
 function calcularAlturaBarra(valor) {
   if (!valor || valor === 0) return 0
-  // Si valor = 8 y maxScale = 20, entonces altura = (8/20)*100 = 40%
-  // Visualmente la barra llega hasta 8 en el eje Y
-  const porcentaje = (valor / maxScale) * 100
-  return Math.min(porcentaje, 100)
+  return Math.min((valor / maxScale) * 100, 100)
 }
 
 function getIndicadorClass(valor) {
   if (valor === '#¡DIV/0!' || valor === '' || valor === null) return ''
-
-  const porcentaje = parseFloat(valor)
-
-  if (porcentaje >= 85) return 'adecuado'
-  if (porcentaje >= 70) return 'aceptable'
+  const pct = parseFloat(valor)
+  if (pct >= 85) return 'adecuado'
+  if (pct >= 70) return 'aceptable'
   return 'inaceptable'
 }
 
-async function cargarIndicadores() {
-  try {
-    cargando.value = true
-    const response = await axios.post(
-      `${apiUrl}/indicadores/obtener_indicadores_gestion`,
-      {
-        anio: anioActual.value
-      },
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    )
+const obtenerNombreMes = (numeroMes) => listaMeses.find(m => m.numero === numeroMes)?.nombre ?? ''
 
-    if (response.status === 200) {
-      datosIndicadores.value = response.data.data
-
-      // Mapear los datos del backend al formato de la tabla
-      meses.value = datosIndicadores.value.indicadores.map(ind => ({
-        nombre: ind.mes,
-        mes_numero: ind.mes_numero,
-        totalVencer: ind.total_completados,
-        cerradasOportunamente: ind.oportunos,
-        cerradasFueraTiempo: ind.no_oportunos,
-        sinRegistrar: ind.sin_respuesta,
-        indiceCumplimiento: ind.total_completados > 0 ? `${ind.porcentaje}%` : '',
-        acumuladoAnio: `${ind.porcentaje_acumulado}%`,
-        meta: ind.porcentaje_meta,
-        totalIngresaron: ind.total_ingresados,
-        ticketsAbiertos: ind.tickets_abiertos
-      }))
-      
-      // Cargar análisis de causas
-      await cargarAnalisisCausas()
-    }
-  } catch (error) {
-    console.error('Error cargando indicadores:', error)
-  } finally {
-    cargando.value = false
-  }
-}
-
-// Función para cargar tickets del periodo seleccionado
-const cargarTicketsPeriodo = async () => {
-  if (!mesSeleccionadoFiltro.value) {
-    ticketsPeriodo.value = []
-    return
-  }
-
-  try {
-    cargandoTickets.value = true
-    const response = await axios.post(
-      `${apiUrl}/indicadores/obtener_tickets_periodo`,
-      {
-        anio: anioActual.value,
-        mes: mesSeleccionadoFiltro.value,
-        tipo_ticket: 1, // Gestión
-        page: currentPage.value,
-        limit: itemsPerPage.value
-      },
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    )
-
-    if (response.status === 200 && response.data.data) {
-      ticketsPeriodo.value = response.data.data.tickets || []
-      resumenTicketsPeriodo.value = response.data.data.resumen || {
-        total: 0,
-        cerrados: 0,
-        en_progreso: 0,
-        abiertos: 0
-      }
-      // Actualizar paginación
-      if (response.data.data.pagination) {
-        totalTickets.value = response.data.data.pagination.total_records || 0
-        totalPages.value = response.data.data.pagination.total_pages || 0
-      }
-    }
-  } catch (error) {
-    console.error('Error cargando tickets del periodo:', error)
-    ticketsPeriodo.value = []
-  } finally {
-    cargandoTickets.value = false
-  }
-}
-
-const cambiarPagina = (nuevaPagina) => {
-  if (nuevaPagina >= 1 && nuevaPagina <= totalPages.value) {
-    currentPage.value = nuevaPagina
-    cargarTicketsPeriodo()
-  }
-}
-
-
-
-// Funciones para análisis de causas y acciones
-const cargarAnalisisCausas = async () => {
-  try {
-    const response = await axios.post(
-      `${apiUrl}/indicadores/obtener_analisis_causas`,
-      {
-        anio: anioActual.value
-      },
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    )
-
-    if (response.status === 200 && response.data.data) {
-      acciones_list.value = response.data.data
-    }
-  } catch (error) {
-    console.error('Error cargando análisis de causas:', error)
-    acciones_list.value = []
-  }
-}
-
-const abrirModalAnalisis = (analisis = null) => {
-  analisisEditando.value = analisis
-  
-  if (analisis) {
-    // Modo edición
-    formAnalisis.value = {
-      mes: analisis.mes,
-      analisis: analisis.analisis || '',
-      acciones: analisis.acciones || '',
-      responsable: analisis.responsable || '',
-      fecha_compromiso: analisis.fecha_compromiso || '',
-      seguimiento: analisis.seguimiento || ''
-    }
-  } else {
-    // Modo creación
-    formAnalisis.value = {
-      mes: '',
-      analisis: '',
-      acciones: '',
-      responsable: '',
-      fecha_compromiso: '',
-      seguimiento: ''
-    }
-  }
-  
-  modalAnalisis.value = true
-}
-
-const cerrarModalAnalisis = () => {
-  modalAnalisis.value = false
-  analisisEditando.value = null
-  formAnalisis.value = {
-    mes: '',
-    analisis: '',
-    acciones: '',
-    responsable: '',
-    fecha_compromiso: '',
-    seguimiento: ''
-  }
-}
-
-const guardarAnalisis = async () => {
-  try {
-    guardandoAnalisis.value = true
-    
-    const payload = {
-      anio: anioActual.value,
-      mes: parseInt(formAnalisis.value.mes),
-      analisis: formAnalisis.value.analisis,
-      acciones: formAnalisis.value.acciones,
-      responsable: formAnalisis.value.responsable,
-      fecha_compromiso: formAnalisis.value.fecha_compromiso,
-      seguimiento: formAnalisis.value.seguimiento
-    }
-
-    if (analisisEditando.value) {
-      payload.id = analisisEditando.value.id
-    }
-
-    const response = await axios.post(
-      `${apiUrl}/indicadores/guardar_analisis_causas`,
-      payload,
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    )
-
-    if (response.status === 200) {
-      await cargarAnalisisCausas()
-      cerrarModalAnalisis()
-    }
-  } catch (error) {
-    console.error('Error guardando análisis:', error)
-    if (error.response?.data?.message) {
-      alert(error.response.data.message)
-    }
-  } finally {
-    guardandoAnalisis.value = false
-  }
-}
-
-// Función auxiliar para obtener nombre del mes
-const obtenerNombreMes = (numeroMes) => {
-  const mes = listaMeses.find(m => m.numero === numeroMes)
-  return mes ? mes.nombre : ''
-}
-
-// Función auxiliar para formatear fecha
 const formatearFecha = (fecha) => {
   if (!fecha) return ''
-  const date = new Date(fecha)
-  const dia = String(date.getDate()).padStart(2, '0')
-  const mes = String(date.getMonth() + 1).padStart(2, '0')
-  const anio = date.getFullYear()
-  return `${dia}/${mes}/${anio}`
+  const d = new Date(fecha)
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
 }
 
-// Calcular el máximo de tickets del año para escalar las barras a porcentaje
-const maxTickets = computed(() => {
-  if (!meses.value.length) return 1
-  return Math.max(...meses.value.map(m => m.totalVencer || 0), 1)
-})
+const maxTickets = computed(() =>
+  Math.max(...meses.value.map(m => m.totalVencer ?? 0), 1)
+)
 
-// Altura de la gráfica de barras simple (debe coincidir con el CSS)
-const SIMPLE_BAR_CHART_HEIGHT = 180;
+const SIMPLE_BAR_CHART_HEIGHT = 180
 
-// Calcula los puntos para la línea SVG del índice de cumplimiento (valor numérico, no porcentaje)
 const linePoints = computed(() => {
   if (!meses.value.length) return ''
   return meses.value.map((mes, i) => {
-    let valor = 0
-    // Usar el valor numérico del porcentaje (por ejemplo, 50)
-    if (mes.indiceCumplimiento && typeof mes.indiceCumplimiento === 'string') {
-      valor = parseFloat(mes.indiceCumplimiento.replace('%','')) || 0
-    }
+    const valor = parseFloat((mes.indiceCumplimiento ?? '').replace('%', '')) || 0
     const y = SIMPLE_BAR_CHART_HEIGHT - (valor * SIMPLE_BAR_CHART_HEIGHT / 120)
-    const x = (i / 11) * 100
-    return `${x},${y}`
+    return `${(i / 11) * 100},${y}`
   }).join(' ')
 })
 
-// Calcula los puntos para la línea gris oscuro del % acumulado del año
 const linePointsAcumulado = computed(() => {
   if (!meses.value.length) return ''
   return meses.value.map((mes, i) => {
-    let valor = 0
-    if (mes.acumuladoAnio && typeof mes.acumuladoAnio === 'string') {
-      valor = parseFloat(mes.acumuladoAnio.replace('%','')) || 0
-    }
+    const valor = parseFloat((mes.acumuladoAnio ?? '').replace('%', '')) || 0
     const y = SIMPLE_BAR_CHART_HEIGHT - (valor * SIMPLE_BAR_CHART_HEIGHT / 120)
-    const x = (i / 11) * 100
-    return `${x},${y}`
+    return `${(i / 11) * 100},${y}`
   }).join(' ')
 })
 
-// Línea verde de meta (igual formato que las otras)
 const linePointsMeta = computed(() => {
-  if (!meses.value.length || porcentajeMeta.value === null || porcentajeMeta.value === undefined) return ''
-  const puntos = meses.value.map((_, i) => {
-    const valor = parseFloat(porcentajeMeta.value) || 0
+  if (!meses.value.length || porcentajeMeta.value == null) return ''
+  const valor = parseFloat(porcentajeMeta.value) || 0
+  return meses.value.map((_, i) => {
     const y = SIMPLE_BAR_CHART_HEIGHT - (valor * SIMPLE_BAR_CHART_HEIGHT / 120)
-    const x = (i / 11) * 100
-    return `${x},${y}`
-  })
-  return puntos.join(' ')
+    return `${(i / 11) * 100},${y}`
+  }).join(' ')
 })
 
-// Para la gráfica de torta
 const cumplimientoGlobal = computed(() => {
-  if (!totales.value || !totales.value.indiceCumplimiento) return 0;
-  const val = parseFloat(totales.value.indiceCumplimiento);
-  return isNaN(val) ? 0 : Math.round(val);
-});
-const circumferencia = 2 * Math.PI * 54;
+  if (!totales.value?.indiceCumplimiento) return 0
+  const val = parseFloat(totales.value.indiceCumplimiento)
+  return isNaN(val) ? 0 : Math.round(val)
+})
+const circumferencia = 2 * Math.PI * 54
 
 function getEstadoColor(valor) {
-  const pct = parseFloat(valor);
-  if (pct >= 85) return '#22c55e'; // verde
-  if (pct >= 70) return '#f59e42'; // naranja
-  return '#ef4444'; // rojo
+  const pct = parseFloat(valor)
+  if (pct >= 85) return '#22c55e'
+  if (pct >= 70) return '#f59e42'
+  return '#ef4444'
 }
 function getEstadoClass(valor) {
-  const pct = parseFloat(valor);
-  if (pct >= 85) return 'adecuado';
-  if (pct >= 70) return 'aceptable';
-  return 'inaceptable';
+  const pct = parseFloat(valor)
+  if (pct >= 85) return 'adecuado'
+  if (pct >= 70) return 'aceptable'
+  return 'inaceptable'
 }
 function getEstadoTexto(valor) {
-  const pct = parseFloat(valor);
-  if (pct >= 85) return 'Adecuado';
-  if (pct >= 70) return 'Aceptable';
-  return 'Inaceptable';
+  const pct = parseFloat(valor)
+  if (pct >= 85) return 'Adecuado'
+  if (pct >= 70) return 'Aceptable'
+  return 'Inaceptable'
 }
 
-// Funciones para gestión de años
-const cargarAniosDisponibles = async () => {
-  try {
-    const response = await axios.post(
-      `${apiUrl}/indicadores/obtener_anios`,
-      {},
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    )
-
-    if (response.status === 200 && response.data.data) {
-      aniosDisponibles.value = response.data.data.map(a => a.anio)
-      emit('update:anios', aniosDisponibles.value)
-      
-      // Si hay años disponibles y el año actual no está en la lista, seleccionar el primero
-      if (aniosDisponibles.value.length > 0 && !aniosDisponibles.value.includes(anioActual.value)) {
-        anioActual.value = aniosDisponibles.value[0]
-      }
-    }
-  } catch (error) {
-    console.error('Error cargando años disponibles:', error)
-    // Dejar la lista vacía si hay error
-    aniosDisponibles.value = []
-    emit('update:anios', [])
-  }
-}
-
-const abrirModalCrearAnio = () => {
-  nuevoAnio.value = {
-    anio: null,
-    descripcion: ''
-  }
-  mostrarModalAnio.value = true
-}
-
-const cerrarModalAnio = () => {
-  mostrarModalAnio.value = false
-  nuevoAnio.value = {
-    anio: null,
-    descripcion: ''
-  }
-}
-
-const guardarNuevoAnio = async () => {
-  if (!nuevoAnio.value.anio) {
-    alert('Por favor ingrese un año válido')
-    return
-  }
-
-  // Validar que sea un número de 4 dígitos
-  const anioNum = parseInt(nuevoAnio.value.anio)
-  if (isNaN(anioNum) || anioNum < 1900 || anioNum > 2100) {
-    alert('El año debe ser un número entre 1900 y 2100')
-    return
-  }
-
-  guardandoAnio.value = true
-
-  try {
-    const response = await axios.post(
-      `${apiUrl}/indicadores/crear_anio`,
-      {
-        anio: anioNum,
-        descripcion: nuevoAnio.value.descripcion
-      },
-      {
-        headers: {
-          Accept: "application/json",
-        }
-      }
-    )
-
-    if (response.status === 200) {
-      alert('Año creado exitosamente')
-      cerrarModalAnio()
-      await cargarAniosDisponibles()
-      // Seleccionar el año recién creado
-      anioActual.value = anioNum
-      cargarIndicadores()
-    }
-  } catch (error) {
-    console.error('Error creando año:', error)
-    if (error.response?.data?.message) {
-      alert(error.response.data.message)
-    } else {
-      alert('Error al crear el año')
-    }
-  } finally {
-    guardandoAnio.value = false
-  }
-}
-
-onMounted(async () => {
-  await cargarAniosDisponibles()
-  if (anioActual.value) {
-    cargarIndicadores()
-  }
-  // setTimeout(() => {
-  //   // Mostrar los datos de los meses en consola para depuración
-  //   console.log('Meses para gráfica:', JSON.parse(JSON.stringify(meses.value)))
-  // }, 1500)
-})
-
-// Exponer funciones y variables para que el componente padre pueda acceder a ellas
-defineExpose({
-  cargarIndicadores,
-  abrirModalCrearAnio,
-  anioActual,
-  mesSeleccionadoFiltro
-})
+// Exponer para el componente padre
+defineExpose({ cargarIndicadores: () => {}, abrirModalCrearAnio, anioActual, mesSeleccionadoFiltro })
 </script>
 
 <style scoped>
