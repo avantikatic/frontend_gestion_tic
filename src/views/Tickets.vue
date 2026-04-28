@@ -557,7 +557,7 @@ const {
   origenesEstrategicos,
 } = useTicketsCatalogos()
 
-const { correos, token, isLoading: isLoadingCorreos, syncCorreos } = useCorreos()
+const { correos, token, isLoading: isLoadingCorreos, isFetching: isFetchingCorreos, syncCorreos } = useCorreos()
 
 const attachmentsCache = ref(new Map()); // Cache para attachments
 const mailBodyRef = ref(null); // Referencia al contenedor del mail body
@@ -846,11 +846,11 @@ const { ticketsCorreos, isLoading: loadingTickets } = useTicketsFiltrados({
 
 // ── Loading overlay conectado a estados TanStack ────────────────────────────
 const showLoading = computed(() =>
-  loading.value || isLoadingCorreos.value || loadingTickets.value
+  loading.value || isLoadingCorreos.value || isFetchingCorreos.value || loadingTickets.value
 )
 const loadingMsgComputed = computed(() => {
   if (loading.value) return loading_msg.value
-  if (isLoadingCorreos.value) return 'Buscando...'
+  if (isLoadingCorreos.value || isFetchingCorreos.value) return 'Buscando...'
   if (loadingTickets.value) return `Cargando ${vista.value}...`
   return ''
 })
