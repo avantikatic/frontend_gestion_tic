@@ -86,12 +86,12 @@ export function useLicenciasCatalogos() {
   })
 
   return {
-    tiposServicio: computed(() => results[0].data ?? []),
-    proveedores: computed(() => results[1].data ?? []),
-    productos: computed(() => results[2].data ?? []),
-    metodosPago: computed(() => results[3].data ?? []),
-    tiposMoneda: computed(() => results[4].data ?? []),
-    isLoading: computed(() => results.some((r) => r.isLoading)),
+    tiposServicio: computed(() => results.value[0]?.data ?? []),
+    proveedores: computed(() => results.value[1]?.data ?? []),
+    productos: computed(() => results.value[2]?.data ?? []),
+    metodosPago: computed(() => results.value[3]?.data ?? []),
+    tiposMoneda: computed(() => results.value[4]?.data ?? []),
+    isLoading: computed(() => results.value.some((r) => r.isLoading)),
     invalidarCatalogos,
     crearProductoMutation,
     crearTipoServicioMutation,
