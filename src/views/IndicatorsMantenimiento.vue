@@ -1,0 +1,2229 @@
+<template>
+  <div class="indicators">
+    <div v-if="cargando" class="loading">
+      Cargando indicadores...
+    </div>
+
+    <div v-else>
+    <!-- Sección 1: Información del Indicador -->
+    <section class="indicator-info">
+      <h2>1. INFORMACIÓN DEL INDICADOR</h2>
+      <table class="info-table">
+        <thead>
+          <tr>
+            <th>INDICADOR</th>
+            <th>TIPO</th>
+            <th>FÓRMULA</th>
+            <th>META ESTADO ADECUADO</th>
+            <th>ESTADO ACEPTABLE</th>
+            <th>ESTADO INACEPTABLE</th>
+            <th>FRECUENCIA DE SEGUIMIENTO</th>
+            <th>RESPONSABLE DEL INDICADOR</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="indicator-name">
+              Cumplimiento del programa de mantenimiento preventivo TIC
+            </td>
+            <td>Gestión</td>
+            <td class="formula">
+              (# de Actividades de Mantenimiento preventivo de infraestructura TIC
+              Ejecutadas oportunamente / # de Actividades de Mantenimiento preventivo
+              de infraestructura TIC que se deben realizar) * 100
+            </td>
+            <td class="meta-adecuado">90%</td>
+            <td class="estado-aceptable">89%-85%</td>
+            <td class="estado-inaceptable">&lt; 85%</td>
+            <td>Mensual</td>
+            <td>Auxiliar TIC</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Sección 2: Resultados y Gráfica (gráfica debajo de la tabla) -->
+      <div class="indicadores-grid">
+        <div class="indicadores-col-table">
+          <div class="results-table-wrapper">
+            <h2>2. RESULTADOS</h2>
+            <table class="results-table">
+              <thead>
+                <tr>
+                  <th class="col-mes">MES</th>
+                  <th class="col-num"># de Actividades de Mantenimiento preventivo de infraestructura TIC que se deben realizar</th>
+                  <th class="col-num"># de Actividades de Mantenimiento preventivo de infraestructura TIC Ejecutadas oportunamente</th>
+                  <th class="col-pct">Cumplimiento en la realización de mantenimientos oportunamente</th>
+                  <th class="col-pct">% Acumulado año</th>
+                  <th class="col-meta">Meta</th>
+                  <th class="col-obs">Observaciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="mes in mesesFiltrados" :key="mes.nombre">
+                  <td class="mes-name">{{ mes.nombre }}</td>
+                  <td>{{ mes.totalVencer }}</td>
+                  <td>{{ mes.cerradasOportunamente }}</td>
+                  <td :class="getIndicadorClass(mes.indiceCumplimiento)">
+                    {{ mes.indiceCumplimiento }}
+                  </td>
+                  <td>{{ mes.acumuladoAnio }}</td>
+                  <td>{{ porcentajeMetaDisplay }}</td>
+                  <td class="observaciones-cell">
+                    <button @click="abrirModalObservaciones(mes)" class="btn-observaciones">
+                      📝
+                    </button>
+                  </td>
+                </tr>
+                <tr class="total-row">
+                  <td class="mes-name"><strong>TOTAL</strong></td>
+                  <td><strong>{{ totales.totalVencer }}</strong></td>
+                  <td><strong>{{ totales.cerradasOportunamente }}</strong></td>
+                  <td :class="getIndicadorClass(totales.indiceCumplimiento)">
+                    <strong>{{ totales.indiceCumplimiento }}</strong>
+                  </td>
+                  <td><strong>{{ totales.acumuladoAnio }}</strong></td>
+                  <td><strong>{{ porcentajeMetaDisplay }}</strong></td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          
+          <!-- Tabla de análisis de causas y acciones - Aprovechando el espacio -->
+          <div style="margin-top: 24px;">
+            <table class="analisis-causas-table">
+              <caption class="analisis-caption">
+              <div class="analisis-caption-content">
+                <div>
+                  Análisis de causas y acciones
+                  <div class="analisis-subtitle">Registro mensual de causas principales, acciones correctivas y seguimiento.</div>
+                </div>
+                <button type="button" class="btn-agregar-analisis" @click="abrirModalAnalisis(null)">+ Agregar análisis</button>
+              </div>
+              </caption>
+              <thead>
+                <tr class="analisis-header-row">
+                  <th class="analisis-th analisis-th-mes">MES</th>
+                  <th class="analisis-th analisis-th-analisis">
+                    <div class="analisis-th-main">ANÁLISIS (CAUSAS PRINCIPALES)</div>
+                    <div class="analisis-th-sub">
+                      Para llegar a las causas principales:<br>
+                      * Identifique dónde se generan las desviaciones y su pareto.<br>
+                      * Filtre las causas con lluvia de ideas y análisis causa y efecto-7M<br>
+                      * Reduzca las causas a máximo 3 que se encuentren validadas (apoyo en la técnica 5 por qués)
+                    </div>
+                  </th>
+                  <th class="analisis-th analisis-th-acciones">
+                    <div class="analisis-th-main">ACCIONES A TOMAR FRENTE AL ANÁLISIS</div>
+                    <div class="analisis-th-sub">
+                      Liste las acciones con las que se van a eliminar/controlar las causas identificadas.<br>
+                      Puede relacionar alguna ACPM que se encuentre trabajando.
+                    </div>
+                  </th>
+                  <th class="analisis-th analisis-th-responsable">
+                    <div class="analisis-th-main">RESPONSABLE (NOMBRE-CARGO)</div>
+                    <div class="analisis-th-sub">Relacione el nombre y cargo del responsable de llevar a cabo las acciones definidas</div>
+                  </th>
+                  <th class="analisis-th analisis-th-fecha">
+                    <div class="analisis-th-main">FECHA DE COMPROMISO</div>
+                    <div class="analisis-th-sub">Indique la fecha (DD/MM/AAAA) en que la acción quedará ejecutada</div>
+                  </th>
+                  <th class="analisis-th analisis-th-seguimiento">
+                    <div class="analisis-th-main">SEGUIMIENTO</div>
+                    <div class="analisis-th-sub">Relacione el estado de cumplimiento de las acciones definidas</div>
+                  </th>
+                  <th class="analisis-th analisis-th-actions"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="mesRow in mesesAnalisis" :key="mesRow.numero">
+                  <td class="analisis-td analisis-td-mes">{{ mesRow.nombre }}</td>
+                  <template v-if="getAnalisisMes(mesRow.numero)">
+                    <td class="analisis-td">{{ getAnalisisMes(mesRow.numero).analisis }}</td>
+                    <td class="analisis-td">{{ getAnalisisMes(mesRow.numero).acciones }}</td>
+                    <td class="analisis-td">{{ getAnalisisMes(mesRow.numero).responsable }}</td>
+                    <td class="analisis-td analisis-td-fecha">{{ getAnalisisMes(mesRow.numero).fecha_compromiso }}</td>
+                    <td class="analisis-td">{{ getAnalisisMes(mesRow.numero).seguimiento }}</td>
+                    <td class="analisis-td analisis-td-actions">
+                      <button class="btn-editar-analisis" @click="abrirModalAnalisis(getAnalisisMes(mesRow.numero))" title="Editar">✏️</button>
+                    </td>
+                  </template>
+                  <template v-else>
+                    <td class="analisis-td"></td>
+                    <td class="analisis-td"></td>
+                    <td class="analisis-td"></td>
+                    <td class="analisis-td analisis-td-fecha"></td>
+                    <td class="analisis-td"></td>
+                    <td class="analisis-td analisis-td-actions">
+                      <button class="btn-editar-analisis btn-agregar-row" @click="abrirModalAnalisis(null, mesRow.numero)" title="Agregar">+</button>
+                    </td>
+                  </template>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="indicadores-col-graficas">
+          <section class="simple-bar-chart-outer">
+            <div class="simple-bar-chart-scroll">
+              <section class="simple-bar-chart compact">
+                <header class="simple-bar-chart__header">
+                  <h2>3. Gráfica</h2>
+                </header>
+                <div class="simple-bar-chart__body">
+                  <div class="simple-axis-y">
+                    <span v-for="tick in [120, 100, 80, 60, 40, 20, 0]" :key="tick">{{ tick }}</span>
+                  </div>
+                  <div class="simple-bars-area">
+                    <svg class="simple-line-svg" viewBox="0 0 100 180" preserveAspectRatio="none" v-if="!mesSeleccionadoFiltro">
+                      <polyline :points="linePointsAcumulado" fill="none" stroke="#374151" stroke-width="0.3" stroke-linecap="round" stroke-linejoin="round" />
+                      <polyline :points="linePoints" fill="none" stroke="#2563eb" stroke-width="0.3" stroke-linecap="round" stroke-linejoin="round" />
+                      <polyline :points="linePointsMeta" fill="none" stroke="#004d0d" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <div v-for="mes in mesesFiltrados" :key="mes.mes_numero" class="simple-bar-group">
+                      <div
+                        class="simple-bar simple-bar-total"
+                        :style="{ height: (mes.totalVencer / 120 * 100) + '%', width: '28px' }"
+                        :title="`${mes.nombre}: Total ${mes.totalVencer} actividades`"
+                      ></div>
+                      <div
+                        class="simple-bar simple-bar-oportuno"
+                        :style="{ height: (mes.cerradasOportunamente / 120 * 100) + '%', width: '28px' }"
+                        :title="`${mes.nombre}: ${mes.cerradasOportunamente} ejecutadas oportunamente`"
+                      ></div>
+                      <span class="simple-bar-label">{{ mes.nombre.slice(0, 3) }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="simple-legend simple-legend-bottom">
+                  <div class="legend-item"><span class="legend-color legend-blue"></span> Índice de cumplimiento</div>
+                  <div class="legend-item"><span class="legend-color legend-gray"></span> % Acumulado año</div>
+                  <div class="legend-item"><span class="legend-color legend-green"></span> Meta</div>
+                  <div class="legend-item"><span class="legend-bar legend-bar-total"></span> Total actividades a realizar</div>
+                  <div class="legend-item"><span class="legend-bar legend-bar-oportuno"></span> Ejecutadas oportunamente</div>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section class="indicador-torta-card">
+            <h3>Estado global del indicador</h3>
+            <p class="indicador-torta-desc">Promedio de cumplimiento del periodo filtrado.</p>
+            <div class="indicador-torta-flex">
+              <svg viewBox="0 0 120 120" width="110" height="110" class="indicador-torta-svg">
+                <circle cx="60" cy="60" r="54" fill="#f4f8fc" stroke="#e5e7eb" stroke-width="15" />
+                <circle
+                  cx="60" cy="60" r="54"
+                  fill="none"
+                  :stroke="getEstadoColor(totales.indiceCumplimiento)"
+                  stroke-width="8"
+                  :stroke-dasharray="circumferencia"
+                  :stroke-dashoffset="circumferencia - (circumferencia * cumplimientoGlobal / 100)"
+                  stroke-linecap="round"
+                  transform="rotate(-90 60 60)"
+                />
+                <text x="60" y="66" text-anchor="middle" font-size="28" font-weight="bold" fill="#22396a">{{ cumplimientoGlobal }}%</text>
+                <text x="60" y="86" text-anchor="middle" font-size="12" fill="#22396a">cumplimiento</text>
+              </svg>
+              <div class="indicador-torta-estado">
+                <span class="indicador-torta-estado-badge" :class="getEstadoClass(totales.indiceCumplimiento)">
+                  {{ getEstadoTexto(totales.indiceCumplimiento) }}
+                </span>
+                <ul class="indicador-torta-leyenda">
+                  <li><span class="indicador-torta-dot adecuado"></span> Adecuado (≥ 90%)</li>
+                  <li><span class="indicador-torta-dot aceptable"></span> Aceptable (85% - 89%)</li>
+                  <li><span class="indicador-torta-dot inaceptable"></span> Inaceptable (&lt; 85%)</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Observaciones -->
+    <div v-if="modalObservaciones" class="modal-overlay" @click="cerrarModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>Observaciones - {{ mesSeleccionado?.nombre }} {{ anioActual }}</h3>
+          <button @click="cerrarModal" class="btn-close">✕</button>
+        </div>
+        <div class="modal-body">
+          <textarea
+            v-model="observacionTexto"
+            placeholder="Escribe las observaciones del mes..."
+            rows="6"
+          ></textarea>
+        </div>
+        <div class="modal-footer">
+          <button @click="cerrarModal" class="btn-cancelar">Cancelar</button>
+          <button @click="guardarObservacion" class="btn-guardar" :disabled="guardando">
+            {{ guardando ? 'Guardando...' : 'Guardar' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Análisis de Causas y Acciones -->
+    <div v-if="modalAnalisis" class="modal-overlay" @click="cerrarModalAnalisis">
+      <div class="modal-content modal-content-wide" @click.stop>
+        <div class="modal-header">
+          <h3>{{ analisisEditando ? 'Editar' : 'Agregar' }} Análisis de Causas y Acciones</h3>
+          <button @click="cerrarModalAnalisis" class="btn-close">✕</button>
+        </div>
+        <div class="modal-body">
+          <form @submit.prevent="guardarAnalisis" class="form-analisis">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="mes-analisis">Mes *</label>
+                <select 
+                  id="mes-analisis" 
+                  v-model="formAnalisis.mes" 
+                  required
+                  :disabled="analisisEditando"
+                  class="form-select"
+                >
+                  <option value="">Seleccione un mes</option>
+                  <option v-for="mes in mesesAnalisis" :key="mes.numero" :value="mes.numero">
+                    {{ mes.nombre }}
+                  </option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="analisis">Análisis (Causas Principales) *</label>
+              <textarea 
+                id="analisis"
+                v-model="formAnalisis.analisis" 
+                placeholder="Identifique dónde se generan las desviaciones y su pareto..."
+                rows="4"
+                required
+                class="form-textarea"
+              ></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="acciones">Acciones a Tomar Frente al Análisis *</label>
+              <textarea 
+                id="acciones"
+                v-model="formAnalisis.acciones" 
+                placeholder="Liste las acciones con las que se van a eliminar/controlar las causas..."
+                rows="4"
+                required
+                class="form-textarea"
+              ></textarea>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="responsable">Responsable (Nombre-Cargo) *</label>
+                <input 
+                  type="text"
+                  id="responsable"
+                  v-model="formAnalisis.responsable" 
+                  placeholder="Ej: Juan Pérez - Coordinador TIC"
+                  required
+                  class="form-input"
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="fecha-compromiso">Fecha de Compromiso *</label>
+                <input 
+                  type="date"
+                  id="fecha-compromiso"
+                  v-model="formAnalisis.fecha_compromiso" 
+                  required
+                  class="form-input"
+                />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="seguimiento">Seguimiento *</label>
+              <textarea 
+                id="seguimiento"
+                v-model="formAnalisis.seguimiento" 
+                placeholder="Relacione el estado de cumplimiento de las acciones definidas..."
+                rows="3"
+                required
+                class="form-textarea"
+              ></textarea>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button @click="cerrarModalAnalisis" class="btn-cancelar">Cancelar</button>
+          <button @click="guardarAnalisis" class="btn-guardar" :disabled="guardandoAnalisis">
+            {{ guardandoAnalisis ? 'Guardando...' : 'Guardar' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal para crear año -->
+    <div v-if="mostrarModalAnio" class="modal-overlay" @click.self="cerrarModalAnio">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Crear Nuevo Año</h3>
+          <button @click="cerrarModalAnio" class="modal-close">×</button>
+        </div>
+        <div class="modal-body">
+          <form @submit.prevent="guardarNuevoAnio" class="form-analisis">
+            <div class="form-group">
+              <label for="nuevo-anio">Año *</label>
+              <input 
+                type="number"
+                id="nuevo-anio"
+                v-model="nuevoAnio.anio" 
+                placeholder="Ej: 2024"
+                required
+                min="1900"
+                max="2100"
+                class="form-input"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="descripcion-anio">Descripción (Opcional)</label>
+              <input 
+                type="text"
+                id="descripcion-anio"
+                v-model="nuevoAnio.descripcion" 
+                placeholder="Ej: Año fiscal 2024"
+                class="form-input"
+              />
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button @click="cerrarModalAnio" class="btn-cancelar">Cancelar</button>
+          <button @click="guardarNuevoAnio" class="btn-guardar" :disabled="guardandoAnio">
+            {{ guardandoAnio ? 'Creando...' : 'Crear Año' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, watch } from 'vue'
+import {
+  useAniosDisponiblesMantenimiento as useAniosDisponibles,
+  useCrearAnioMantenimiento as useCrearAnio,
+  useIndicadoresMantenimiento as useIndicadores,
+  useAnalisisCausasMantenimiento as useAnalisisCausas,
+  useObservacionMesMantenimiento as useObservacionMes,
+  useTicketsPeriodoMantenimiento as useTicketsPeriodo,
+} from '../composables/indicadores/useIndicadoresMantenimiento.js'
+
+// Props recibidos del componente padre
+const props = defineProps({
+  anioProp: {
+    type: Number,
+    default: null
+  },
+  mesProp: {
+    type: [String, Number],
+    default: ''
+  }
+})
+
+const emit = defineEmits(['update:loading', 'update:anios'])
+
+// ── Estado UI ────────────────────────────────────────────────────────────────
+const anioActual = ref(props.anioProp)
+const mesSeleccionadoFiltro = ref(props.mesProp)
+
+// Sync props → estado interno
+watch(() => props.anioProp, (v) => { if (v) anioActual.value = v })
+watch(() => props.mesProp,  (v) => { mesSeleccionadoFiltro.value = v })
+
+// ── Años disponibles ─────────────────────────────────────────────────────────
+const { aniosDisponibles, isLoading: cargandoAnios } = useAniosDisponibles()
+
+// Cuando lleguen los años, inicializar anioActual si hace falta y emitir
+watch(aniosDisponibles, (anios) => {
+  emit('update:anios', anios)
+  if (anios.length > 0 && !anios.includes(anioActual.value)) {
+    anioActual.value = anios[0]
+  }
+}, { immediate: true })
+
+// Modal de creación de año
+const mostrarModalAnio = ref(false)
+const nuevoAnio = ref({ anio: null, descripcion: '' })
+const crearAnioMutation = useCrearAnio()
+
+const abrirModalCrearAnio = () => {
+  nuevoAnio.value = { anio: null, descripcion: '' }
+  mostrarModalAnio.value = true
+}
+const cerrarModalAnio = () => {
+  mostrarModalAnio.value = false
+  nuevoAnio.value = { anio: null, descripcion: '' }
+}
+const guardarNuevoAnio = async () => {
+  if (!nuevoAnio.value.anio) { alert('Por favor ingrese un año válido'); return }
+  const anioNum = parseInt(nuevoAnio.value.anio)
+  if (isNaN(anioNum) || anioNum < 1900 || anioNum > 2100) {
+    alert('El año debe ser un número entre 1900 y 2100'); return
+  }
+  try {
+    await crearAnioMutation.mutateAsync({ anio: anioNum, descripcion: nuevoAnio.value.descripcion })
+    alert('Año creado exitosamente')
+    cerrarModalAnio()
+    anioActual.value = anioNum
+  } catch (error) {
+    alert(error.response?.data?.message ?? 'Error al crear el año')
+  }
+}
+const guardandoAnio = computed(() => crearAnioMutation.isPending.value)
+
+// ── Indicadores y análisis de causas ────────────────────────────────────────
+const { meses, datosIndicadores, isLoading: cargando, isFetching } = useIndicadores(anioActual)
+const { accionesList, guardarAnalisisMutation } = useAnalisisCausas(anioActual)
+
+// Emitir estado de carga al padre
+watch(cargando, (v) => emit('update:loading', v))
+
+// ── Tickets del periodo ──────────────────────────────────────────────────────
+const currentPage = ref(1)
+const itemsPerPage = ref(5)
+
+// Reset de página al cambiar mes
+watch(mesSeleccionadoFiltro, () => { currentPage.value = 1 })
+
+const {
+  tickets: ticketsPeriodo,
+  resumen: resumenTicketsPeriodo,
+  pagination,
+  isLoading: cargandoTickets,
+} = useTicketsPeriodo(anioActual, mesSeleccionadoFiltro, currentPage, itemsPerPage)
+
+const totalTickets = computed(() => pagination.value.total_records)
+const totalPages   = computed(() => pagination.value.total_pages)
+
+const cambiarPagina = (nuevaPagina) => {
+  if (nuevaPagina >= 1 && nuevaPagina <= totalPages.value) {
+    currentPage.value = nuevaPagina
+  }
+}
+
+// ── Modal de observaciones ───────────────────────────────────────────────────
+const modalObservaciones = ref(false)
+const mesSeleccionado    = ref(null)    // objeto mes (tiene .mes_numero)
+const mesNumeroModal     = computed(() => mesSeleccionado.value?.mes_numero ?? null)
+const observacionTexto   = ref('')
+const guardando          = ref(false)
+
+const {
+  observacion: observacionCargada,
+  guardarObservacionMutation,
+} = useObservacionMes(anioActual, mesNumeroModal)
+
+// Cuando se cargue la observación del mes, poblar el textarea
+watch(observacionCargada, (v) => { observacionTexto.value = v })
+
+const abrirModalObservaciones = (mes) => {
+  mesSeleccionado.value = mes
+  observacionTexto.value = ''
+  modalObservaciones.value = true
+}
+const cerrarModal = () => {
+  modalObservaciones.value = false
+  mesSeleccionado.value = null
+  observacionTexto.value = ''
+}
+const guardarObservacion = async () => {
+  if (!mesSeleccionado.value) return
+  try {
+    guardando.value = true
+    await guardarObservacionMutation.mutateAsync({
+      anio: anioActual.value,
+      mes: mesSeleccionado.value.mes_numero,
+      observaciones: observacionTexto.value,
+    })
+    cerrarModal()
+  } catch (error) {
+    console.error('Error guardando observación:', error)
+  } finally {
+    guardando.value = false
+  }
+}
+
+// ── Modal de análisis de causas ──────────────────────────────────────────────
+const modalAnalisis      = ref(false)
+const analisisEditando   = ref(null)
+const guardandoAnalisis  = computed(() => guardarAnalisisMutation.isPending.value)
+const formAnalisis = ref({
+  mes: '', analisis: '', acciones: '', responsable: '', fecha_compromiso: '', seguimiento: ''
+})
+
+const mesesAnalisis = [
+  { numero: 3, nombre: 'MARZO' },
+  { numero: 9, nombre: 'SEPTIEMBRE' }
+]
+
+const getAnalisisMes = (mesNumero) =>
+  (accionesList.value ?? []).find(item => item.mes === mesNumero) ?? null
+
+const abrirModalAnalisis = (analisis = null, mesPreseleccionado = null) => {
+  analisisEditando.value = analisis
+  formAnalisis.value = analisis
+    ? { mes: analisis.mes, analisis: analisis.analisis ?? '', acciones: analisis.acciones ?? '',
+        responsable: analisis.responsable ?? '', fecha_compromiso: analisis.fecha_compromiso ?? '',
+        seguimiento: analisis.seguimiento ?? '' }
+    : { mes: mesPreseleccionado ?? '', analisis: '', acciones: '', responsable: '', fecha_compromiso: '', seguimiento: '' }
+  modalAnalisis.value = true
+}
+const cerrarModalAnalisis = () => {
+  modalAnalisis.value = false
+  analisisEditando.value = null
+  formAnalisis.value = { mes: '', analisis: '', acciones: '', responsable: '', fecha_compromiso: '', seguimiento: '' }
+}
+const guardarAnalisis = async () => {
+  try {
+    const payload = {
+      anio: anioActual.value,
+      mes: parseInt(formAnalisis.value.mes),
+      analisis: formAnalisis.value.analisis,
+      acciones: formAnalisis.value.acciones,
+      responsable: formAnalisis.value.responsable,
+      fecha_compromiso: formAnalisis.value.fecha_compromiso,
+      seguimiento: formAnalisis.value.seguimiento,
+    }
+    if (analisisEditando.value) payload.id = analisisEditando.value.id
+    await guardarAnalisisMutation.mutateAsync(payload)
+    cerrarModalAnalisis()
+  } catch (error) {
+    console.error('Error guardando análisis:', error)
+    alert(error.response?.data?.message ?? 'Error al guardar el análisis')
+  }
+}
+
+// ── Computed de vista ────────────────────────────────────────────────────────
+const listaMeses = [
+  { numero: 1, nombre: 'Enero' }, { numero: 2, nombre: 'Febrero' },
+  { numero: 3, nombre: 'Marzo' }, { numero: 4, nombre: 'Abril' },
+  { numero: 5, nombre: 'Mayo' },  { numero: 6, nombre: 'Junio' },
+  { numero: 7, nombre: 'Julio' }, { numero: 8, nombre: 'Agosto' },
+  { numero: 9, nombre: 'Septiembre' }, { numero: 10, nombre: 'Octubre' },
+  { numero: 11, nombre: 'Noviembre' }, { numero: 12, nombre: 'Diciembre' },
+]
+
+const porcentajeMeta = computed(() => {
+  if (!datosIndicadores.value?.indicadores?.length) return null
+  return datosIndicadores.value.indicadores[0].porcentaje_meta
+})
+const porcentajeMetaDisplay = computed(() =>
+  porcentajeMeta.value != null ? `${porcentajeMeta.value}%` : '—'
+)
+
+const mesesFiltrados = computed(() => {
+  if (!meses.value.length) return []
+  if (!mesSeleccionadoFiltro.value) return meses.value
+  return meses.value.filter(m => m.mes_numero === mesSeleccionadoFiltro.value)
+})
+
+const analisisFiltrados = computed(() => {
+  if (!accionesList.value) return []
+  if (!mesSeleccionadoFiltro.value) return accionesList.value
+  return accionesList.value.filter(item => item.mes === mesSeleccionadoFiltro.value)
+})
+
+const totales = computed(() => {
+  if (!datosIndicadores.value) {
+    return { totalVencer: 0, cerradasOportunamente: 0, cerradasFueraTiempo: 0, sinRegistrar: 0,
+             indiceCumplimiento: '0%', acumuladoAnio: '0%', meta: porcentajeMetaDisplay.value,
+             totalIngresaron: 0, ticketsAbiertos: 0 }
+  }
+  if (mesSeleccionadoFiltro.value) {
+    const mesData = meses.value.find(m => m.mes_numero === mesSeleccionadoFiltro.value)
+    if (mesData) {
+      return { totalVencer: mesData.totalVencer, cerradasOportunamente: mesData.cerradasOportunamente,
+               cerradasFueraTiempo: mesData.cerradasFueraTiempo, sinRegistrar: mesData.sinRegistrar,
+               indiceCumplimiento: mesData.indiceCumplimiento, acumuladoAnio: mesData.acumuladoAnio,
+               meta: porcentajeMetaDisplay.value, totalIngresaron: mesData.totalIngresaron,
+               ticketsAbiertos: mesData.ticketsAbiertos }
+    }
+  }
+  const t = datosIndicadores.value.totales
+  return {
+    totalVencer:           t.total_actividades,
+    cerradasOportunamente: t.actividades_oportunas,
+    cerradasFueraTiempo:   0,
+    sinRegistrar:          0,
+    indiceCumplimiento:    t.porcentaje_global,  // el backend ya devuelve "100.0%"
+    acumuladoAnio:         t.porcentaje_global,
+    meta:                  porcentajeMetaDisplay.value,
+    totalIngresaron:       0,
+    ticketsAbiertos:       0,
+  }
+})
+
+const maxScale = 20
+const yTicks = [20, 15, 10, 5, 0]
+
+function calcularAlturaBarra(valor) {
+  if (!valor || valor === 0) return 0
+  return Math.min((valor / maxScale) * 100, 100)
+}
+
+function getIndicadorClass(valor) {
+  if (valor === '#¡DIV/0!' || valor === '' || valor === null) return ''
+  const pct = parseFloat(valor)
+  if (pct >= 90) return 'adecuado'
+  if (pct >= 85) return 'aceptable'
+  return 'inaceptable'
+}
+
+const obtenerNombreMes = (numeroMes) => listaMeses.find(m => m.numero === numeroMes)?.nombre ?? ''
+
+const formatearFecha = (fecha) => {
+  if (!fecha) return ''
+  const d = new Date(fecha)
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
+}
+
+const maxTickets = computed(() =>
+  Math.max(...meses.value.map(m => m.totalVencer ?? 0), 1)
+)
+
+const SIMPLE_BAR_CHART_HEIGHT = 180
+
+const linePoints = computed(() => {
+  if (!meses.value.length) return ''
+  return meses.value.map((mes, i) => {
+    const valor = parseFloat((mes.indiceCumplimiento ?? '').replace('%', '')) || 0
+    const y = SIMPLE_BAR_CHART_HEIGHT - (valor * SIMPLE_BAR_CHART_HEIGHT / 120)
+    return `${(i / 11) * 100},${y}`
+  }).join(' ')
+})
+
+const linePointsAcumulado = computed(() => {
+  if (!meses.value.length) return ''
+  return meses.value.map((mes, i) => {
+    const valor = parseFloat((mes.acumuladoAnio ?? '').replace('%', '')) || 0
+    const y = SIMPLE_BAR_CHART_HEIGHT - (valor * SIMPLE_BAR_CHART_HEIGHT / 120)
+    return `${(i / 11) * 100},${y}`
+  }).join(' ')
+})
+
+const linePointsMeta = computed(() => {
+  if (!meses.value.length || porcentajeMeta.value == null) return ''
+  const valor = parseFloat(porcentajeMeta.value) || 0
+  return meses.value.map((_, i) => {
+    const y = SIMPLE_BAR_CHART_HEIGHT - (valor * SIMPLE_BAR_CHART_HEIGHT / 120)
+    return `${(i / 11) * 100},${y}`
+  }).join(' ')
+})
+
+// ── Datos para la gráfica de mantenimiento ───────────────────────────────────
+const chartData = computed(() => {
+  const CHART_HEIGHT = 155
+  const CHART_BOTTOM = 170
+  const CHART_LEFT   = 45
+  const CHART_WIDTH  = 295
+  const MAX_PCT      = 120
+
+  const toY = (pct) => CHART_BOTTOM - (pct / MAX_PCT) * CHART_HEIGHT
+
+  const n = mesesFiltrados.value.length
+  const barWidth = n <= 1 ? 100 : 80
+  const positions = Array.from({ length: n }, (_, i) =>
+    CHART_LEFT + (CHART_WIDTH / n) * (i + 0.5)
+  )
+
+  const bars = mesesFiltrados.value.map((mes, i) => {
+    const pct    = parseFloat((mes.indiceCumplimiento ?? '').replace('%', '')) || 0
+    const height = (pct / MAX_PCT) * CHART_HEIGHT
+    return {
+      x:                    positions[i] - barWidth / 2,
+      y:                    CHART_BOTTOM - height,
+      width:                barWidth,
+      height,
+      centerX:              positions[i],
+      nombre:               mes.nombre,
+      totalVencer:          mes.totalVencer,
+      cerradasOportunamente: mes.cerradasOportunamente,
+      indiceCumplimiento:   mes.indiceCumplimiento,
+      estado:               getIndicadorClass(mes.indiceCumplimiento),
+    }
+  })
+
+  const metaVal   = porcentajeMeta.value
+  const metaLineY = metaVal != null ? toY(metaVal) : null
+
+  const yTicks = [0, 25, 50, 75, 90, 100, 120].map(v => ({
+    value: v,
+    y:     toY(v),
+    label: v + '%',
+  }))
+
+  return { bars, metaLineY, yTicks }
+})
+
+const cumplimientoGlobal = computed(() => {
+  if (!totales.value?.indiceCumplimiento) return 0
+  const val = parseFloat(totales.value.indiceCumplimiento)
+  return isNaN(val) ? 0 : Math.round(val)
+})
+const circumferencia = 2 * Math.PI * 54
+
+function getEstadoColor(valor) {
+  const pct = parseFloat(valor)
+  if (pct >= 90) return '#22c55e'
+  if (pct >= 85) return '#f59e42'
+  return '#ef4444'
+}
+function getEstadoClass(valor) {
+  const pct = parseFloat(valor)
+  if (pct >= 90) return 'adecuado'
+  if (pct >= 85) return 'aceptable'
+  return 'inaceptable'
+}
+function getEstadoTexto(valor) {
+  const pct = parseFloat(valor)
+  if (pct >= 90) return 'Adecuado'
+  if (pct >= 85) return 'Aceptable'
+  return 'Inaceptable'
+}
+
+// Exponer para el componente padre
+defineExpose({ cargarIndicadores: () => {}, abrirModalCrearAnio, anioActual, mesSeleccionadoFiltro })
+// Alias para reconocimiento externo
+const _componentName = 'IndicatorsMantenimiento'
+</script>
+
+<style scoped>
+.indicators {
+  padding: 0;
+  background: transparent;
+  box-sizing: border-box;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+  font-size: 0.9rem;
+  color: var(--gtic-text-muted);
+}
+
+section {
+  background: var(--gtic-surface);
+  border-radius: 10px;
+  padding: 20px 22px;
+  margin-bottom: 16px;
+  box-shadow: 0 8px 18px rgba(19, 41, 64, 0.08);
+  border: 1px solid #e2e6ea;
+}
+
+h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--gtic-text-main);
+  margin: 0 0 14px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e2e6ea;
+}
+
+/* Tabla de información del indicador */
+.info-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.info-table th {
+  /* background: var(--gtic-primary); */
+  background-color: #038581;
+  color: white;
+  padding: 10px 8px;
+  text-align: center;
+  font-weight: 600;
+  border: 1px solid #132940;
+  font-size: 0.75rem;
+  line-height: 1.3;
+}
+
+.info-table td {
+  padding: 10px 8px;
+  border: 1px solid #e2e6ea;
+  text-align: center;
+  color: var(--gtic-text-main);
+}
+
+.indicator-name {
+  text-align: left;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.formula {
+  font-size: 0.78rem;
+  text-align: left;
+  font-style: italic;
+  color: var(--gtic-text-main);
+}
+
+.meta-adecuado {
+  background: #e6f7f2;
+  color: #14866d;
+  font-weight: 600;
+}
+
+.estado-aceptable {
+  background: #fff4e3;
+  color: #d68c23;
+  font-weight: 600;
+}
+
+.estado-inaceptable {
+  background: #fde2e2;
+  color: #d64545;
+  font-weight: 600;
+}
+
+/* Tabla de resultados */
+.results-table-wrapper {
+  overflow-x: auto;
+}
+
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  min-width: 700px;
+  border: 1px solid #b4c6e7;
+  box-shadow: 0 2px 8px rgba(19, 41, 64, 0.04);
+  table-layout: fixed;
+}
+
+.results-table thead th {
+  background: #038581;
+  color: #fff;
+  padding: 8px 10px;
+  text-align: center;
+  font-weight: 600;
+  border: 1px solid #038581;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  white-space: normal;
+  vertical-align: middle;
+}
+
+/* Anchos fijos por tipo de columna */
+.results-table .col-mes  { width: 100px; min-width: 90px; }
+.results-table .col-num  { width: 160px; min-width: 140px; }
+.results-table .col-pct  { width: 110px; min-width: 100px; }
+.results-table .col-meta { width: 70px;  min-width: 60px; }
+.results-table .col-obs  { width: 60px;  min-width: 50px; }
+
+.observaciones-header {
+  background: #5b9bd5 !important;
+  border: 1px solid #4178b8 !important;
+}
+
+.sub-header {
+  background: #5b9bd5 !important;
+  border: 1px solid #4178b8 !important;
+  font-size: 0.74rem;
+}
+
+
+.results-table tbody td {
+  padding: 1px 6px;
+  border: 1px solid #dde3ef;
+  text-align: center;
+  color: #038581;
+  background: #f7f9fb;
+  transition: background 0.2s;
+}
+
+.results-table tbody tr:nth-child(even) td {
+  background: #f4f8fc;
+}
+
+.mes-name {
+  background: #f7f9fb !important;
+  color: #038581 !important;
+  font-weight: 700 !important;
+  text-align: left;
+  padding-left: 14px;
+  border-left: 4px solid #038581;
+}
+
+.total-row {
+  background: #dbeaf7 !important;
+  font-weight: 700;
+}
+
+.total-row td {
+  font-weight: 700;
+  background: #f7f9fb !important;
+  color: #038581 !important;
+}
+
+.results-table tbody td strong {
+  font-weight: 700;
+}
+
+.observaciones-cell {
+  min-width: 15px;
+  text-align: left;
+  justify-items: left;
+  background: #e7f3ff;
+}
+
+.observaciones-cell {
+  min-width: 15px;
+  text-align: left;
+  justify-items: left;
+  background: #e7f3ff;
+}
+
+/* Clases de estado según porcentaje */
+.adecuado {
+  background: #e6f7f2;
+  color: #14866d;
+  font-weight: 600;
+}
+
+.aceptable {
+  background: #fff4e3;
+  color: #d68c23;
+  font-weight: 600;
+}
+
+.inaceptable {
+  background: #fde2e2;
+  color: #d64545;
+  font-weight: 600;
+}
+
+@media print {
+  .indicators {
+    background: white;
+    padding: 0;
+  }
+
+  section {
+    box-shadow: none;
+    page-break-inside: avoid;
+  }
+}
+
+/* Estilos del modal de observaciones */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow: auto;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: #333;
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.btn-close:hover {
+  background: #f0f0f0;
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.modal-body textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 14px;
+  resize: vertical;
+  min-height: 150px;
+}
+
+.modal-body textarea:focus {
+  outline: none;
+  border-color: #4CAF50;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: center;
+  gap: 0px;
+  margin-top: 8px;
+  margin-bottom: 0;
+  width: 100%;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #22396a;
+  letter-spacing: 0.5px;
+  user-select: none;
+  cursor: pointer;
+  font-size: 14px;
+  min-width: 18px;
+  text-align: center;
+  white-space: nowrap;
+  flex: 1 1 0;
+  background: #f5f5f5;
+  color: #333;
+}
+
+.btn-cancelar:hover {
+  background: #e0e0e0;
+}
+
+.modal-footer button:not(.btn-cancelar) {
+  background: #4CAF50;
+  color: white;
+}
+
+.modal-footer button:not(.btn-cancelar):hover:not(:disabled) {
+  background: #45a049;
+}
+
+.modal-footer button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-observaciones {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 5px 10px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.btn-observaciones:hover {
+  background: #f0f0f0;
+}
+
+.observaciones-cell {
+  text-align: center;
+}
+
+/* Estilos de la gráfica de barras */
+.indicator-chart {
+  background: var(--gtic-surface);
+  border-radius: 10px;
+  padding: 16px 18px 18px;
+  box-shadow: 0 8px 18px rgba(19, 41, 64, 0.06);
+  border: 1px solid #e2e6ea;
+  margin-top: 20px;
+}
+
+.indicator-chart__header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.indicator-chart__header h2 {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--gtic-text-main);
+}
+
+.indicator-chart__header .subtitle {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--gtic-text-muted);
+}
+
+.indicator-chart__body {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.axis-y {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: var(--gtic-text-muted);
+  padding-right: 4px;
+  padding-top: 4px;
+  padding-bottom: 18px;
+  height: 140px;
+}
+
+.chart-area {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 140px;
+  padding: 0 8px 0 8px;
+  border-radius: 8px;
+  background: linear-gradient(
+    to top,
+    #f8fafc 0%,
+    #f8fafc 50%,
+    #ffffff 100%
+  );
+  border: 1px solid #e2e6ea;
+  overflow: hidden;
+}
+
+.goal-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1.5px dashed #f97316;
+  z-index: 1;
+}
+
+.bar-group {
+  flex: 1;
+  position: relative;
+  display: flex;
+  gap: 3px;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.bar {
+  width: 40%;
+  min-height: 2px;
+  border-radius: 6px 6px 2px 2px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.bar-total {
+  background: linear-gradient(180deg, #94a3b8, #64748b);
+}
+
+.bar-total:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 10px rgba(100, 116, 139, 0.35);
+}
+
+.bar-oportuno {
+  background: linear-gradient(180deg, var(--gtic-secondary), var(--gtic-primary));
+}
+
+.bar-oportuno:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.35);
+}
+
+.bar-label {
+  position: absolute;
+  bottom: -16px;
+  font-size: 0.68rem;
+  color: #4b5563;
+  font-weight: 500;
+}
+
+/* NUEVOS ESTILOS PARA LA GRÁFICA SIMPLE */
+.simple-bar-chart {
+  background: var(--gtic-surface);
+  border-radius: 10px;
+  padding: 16px 18px 50px;
+  box-shadow: 0 8px 18px rgba(19, 41, 64, 0.06);
+  border: 1px solid #e2e6ea;
+  margin-top: 20px;
+}
+.simple-bar-chart__header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.simple-bar-chart__header h2 {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--gtic-text-main);
+}
+.simple-bar-chart__header .subtitle {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--gtic-text-muted);
+}
+.simple-bar-chart__body {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: end;
+  height: 140px;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+.simple-axis-y {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: var(--gtic-text-muted);
+  height: 180px;
+  padding-right: 8px;
+}
+.simple-bars-area {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  height: 180px;
+  border-radius: 8px;
+  background: repeating-linear-gradient(
+    to top,
+    #f8fafc 0px,
+    #f8fafc 49px,
+    #e0e7ef 50px,
+    #f8fafc 51px
+  );
+  border: 1px solid #e2e6ea;
+  margin-bottom: 0;
+  min-width: 0;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: visible; /* Permitir que las etiquetas sean visibles */
+}
+.simple-bar-chart.compact {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto 24px auto; /* Reducir margen inferior */
+  box-sizing: border-box;
+  padding-bottom: 18px; /* Espacio para leyenda */
+}
+.simple-bar-group {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: center;
+  position: relative;
+  min-width: 32px;
+}
+.simple-bar {
+  width: 40px;
+  min-height: 2px;
+  border-radius: 4px 4px 2px 2px;
+  margin: 0 4px 0 4px;
+  transition: height 0.2s;
+  border: none;
+}
+.simple-bar-total {
+  background: #1e3a8a;
+}
+.simple-bar-oportuno {
+  background: #60a5fa;
+  margin-top: 2px;
+}
+
+
+.simple-line-svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.results-table-wrapper {
+  overflow-x: auto;
+}
+
+/* Leyenda de la gráfica */
+.simple-bar-chart__body-with-legend {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 24px;
+}
+.simple-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  font-size: 0.68rem;
+  margin-top: 10px;
+  align-items: center;
+  justify-content: center;
+}
+.simple-legend-bottom {
+  flex-direction: row;
+  justify-content: center;
+  width: 100%;
+  margin-top: 60px;
+  margin-left: 0;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 4px;
+}
+.legend-color {
+  display: inline-block;
+  width: 18px;
+  height: 4px;
+  border-radius: 2px;
+}
+.legend-blue {
+  background: #2563eb;
+}
+.legend-gray {
+  background: #374151;
+}
+.legend-green {
+  background: #004d0d;
+}
+.legend-bar {
+  display: inline-block;
+  width: 18px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 2px;
+}
+.legend-bar-total {
+  background: #1e3a8a;
+}
+.legend-bar-oportuno {
+  background: #60a5fa;
+}
+/* Layout de 2 columnas para tabla y gráficas */
+.indicadores-grid {
+  display: grid;
+  grid-template-columns: 2fr 1.1fr;
+  gap: 24px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+.indicadores-col-table {
+  min-width: 0;
+}
+.indicadores-col-graficas {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+/* Card de estado global del indicador */
+.indicador-torta-card {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(19,41,64,0.07);
+  border: 1px solid #e2e6ea;
+  padding: 22px 18px 18px 18px;
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.indicador-torta-card h3 {
+  font-size: 1.08rem;
+  font-weight: 700;
+  color: #22396a;
+  margin: 0 0 4px 0;
+  text-align: center;
+}
+.indicador-torta-desc {
+  font-size: 0.92rem;
+  color: #6b7280;
+  margin-bottom: 12px;
+  text-align: center;
+}
+.indicador-torta-flex {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.indicador-torta-svg {
+  display: block;
+}
+.indicador-torta-estado {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.indicador-torta-estado-badge {
+  display: inline-block;
+  padding: 3px 16px;
+  border-radius: 999px;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #fff;
+  background: #22396a;
+  margin-bottom: 4px;
+}
+
+/* Card Tickets del periodo */
+.tickets-periodo-card {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(19,41,64,0.07);
+  border: 1px solid #e2e6ea;
+  padding: 22px 18px 18px 18px;
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tickets-periodo-card h3 {
+  font-size: 1.08rem;
+  font-weight: 700;
+  color: #038581;
+  margin: 0 0 4px 0;
+}
+
+.tickets-periodo-desc {
+  font-size: 0.92rem;
+  color: #6b7280;
+  margin-bottom: 16px;
+}
+
+.tickets-periodo-empty {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 32px;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.95rem;
+}
+
+.month-selector {
+  min-width: 140px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid gray;
+  background: var(--gtic-surface);
+  font-size: 0.85rem;
+  color: var(--gtic-text-main);
+  outline: none;
+  cursor: pointer;
+}
+
+.month-selector:focus {
+  border-color: var(--gtic-secondary);
+  box-shadow: 0 0 0 1px rgba(122, 199, 137, 0.35);
+}
+
+.indicador-torta-estado-badge.adecuado {
+  background: #22c55e;
+}
+.indicador-torta-estado-badge.aceptable {
+  background: #f59e42;
+}
+.indicador-torta-estado-badge.inaceptable {
+  background: #ef4444;
+}
+.indicador-torta-leyenda {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.92rem;
+  color: #22396a;
+}
+.indicador-torta-leyenda li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 2px;
+}
+.indicador-torta-dot {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  margin-right: 2px;
+}
+.indicador-torta-dot.adecuado {
+  background: #22c55e;
+}
+.indicador-torta-dot.aceptable {
+  background: #f59e42;
+}
+.indicador-torta-dot.inaceptable {
+  background: #ef4444;
+}
+/* Compactar gráfica y permitir scroll horizontal */
+
+/* Ajuste para que la gráfica nunca se sobrepase y solo tenga scroll si es necesario */
+.simple-bar-chart-outer {
+  width: 100%;
+  overflow-x: auto;
+  padding-bottom: 30px;
+  box-sizing: border-box;
+}
+.simple-bar-chart-scroll {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+.simple-bar-chart.compact {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.simple-bar-group {
+  min-width: 0;
+}
+.simple-bar {
+  width: 22px !important;
+  min-width: 12px;
+  max-width: 32px;
+}
+@media (max-width: 900px) {
+  .simple-bar-chart.compact {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+/* Estilos para tabla de análisis de causas y acciones */
+.analisis-causas-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #b4c6e7;
+  box-shadow: 0 2px 8px rgba(19, 41, 64, 0.04);
+}
+
+.analisis-caption {
+  caption-side: top;
+  text-align: left;
+  font-weight: bold;
+  font-size: 1.05rem;
+  color: #22396a;
+  padding-bottom: 8px;
+}
+
+.analisis-caption-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.analisis-subtitle {
+  font-weight: 400;
+  font-size: 0.98rem;
+  color: #4b5563;
+  margin-top: 2px;
+}
+
+.analisis-header-row {
+  background: #038581;
+  color: #fff;
+}
+
+.analisis-th {
+  text-align: center;
+  vertical-align: middle;
+  font-size: 0.78rem;
+  padding: 12px 8px;
+  border: 1px solid #038581;
+  font-weight: 600;
+}
+
+.analisis-th-mes {
+  min-width: 70px;
+}
+
+.analisis-th-analisis {
+  min-width: 220px;
+}
+
+.analisis-th-acciones {
+  min-width: 180px;
+}
+
+.analisis-th-responsable {
+  min-width: 140px;
+}
+
+.analisis-th-fecha {
+  min-width: 120px;
+}
+
+.analisis-th-seguimiento {
+  min-width: 120px;
+}
+
+.analisis-th-title {
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.analisis-th-main {
+  font-weight: 700;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 6px;
+}
+
+.analisis-th-sub {
+  font-weight: 400;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.88);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.btn-agregar-row {
+  background: #038581 !important;
+  color: #fff !important;
+  border-radius: 50% !important;
+  width: 26px !important;
+  height: 26px !important;
+  font-size: 1.1rem !important;
+  font-weight: 700 !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.analisis-empty-message {
+  text-align: center;
+  padding: 16px;
+  color: #6b7280;
+  background: #f4fcf5;
+}
+
+/* Nombres de los meses debajo de la gráfica de barras */
+.simple-bar-month-labels {
+  display: flex;
+  justify-content: center;
+  margin-top: 50px;
+  width: 100%;
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: #22396a;
+  letter-spacing: 0.5px;
+  user-select: none;
+}
+.simple-bar-month-label {
+  min-width: 2px;
+  text-align: center;
+  white-space: nowrap;
+  flex: 1 1 0;
+}
+
+/* Etiquetas de meses en la gráfica de barras - CORREGIDO */
+.simple-bar-label {
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.68rem;
+  color: #4b5563;
+  font-weight: 500;
+  margin-top: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+/* Botón + Agregar análisis para tabla de análisis */
+.btn-agregar-analisis {
+  background: #038581;
+  color: #fff;
+  border: none;
+  border-radius: 22px;
+  padding: 7px 22px 7px 18px;
+  font-size: 1rem;
+  font-weight: 400;
+  cursor: pointer;
+  transition: background 0.18s;
+  box-shadow: none;
+  outline: none;
+  display: inline-block;
+  margin-left: 10px;
+}
+.btn-agregar-analisis:hover {
+  background: #357a5c;
+}
+
+/* Icono de información en cabeceras de tabla */
+.info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid white;
+  background: #5392ce;
+  color: #fff;
+  font-size: 11px;
+  font-weight: bold;
+  font-style: normal;
+  margin-left: 6px;
+  cursor: help;
+  user-select: none;
+  transition: background 0.2s;
+}
+.info-icon:hover {
+  background: #22396a;
+}
+
+/* Estilos para modal de análisis de causas y acciones */
+.modal-content-wide {
+  max-width: 750px;
+}
+
+.form-analisis {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #22396a;
+}
+
+.form-select,
+.form-input,
+.form-textarea {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.88rem;
+  color: #374151;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-select:focus,
+.form-input:focus,
+.form-textarea:focus {
+  outline: none;
+  border-color: #5b9bd5;
+  box-shadow: 0 0 0 3px rgba(91, 155, 213, 0.1);
+}
+
+.form-select:disabled {
+  background-color: #f3f4f6;
+  cursor: not-allowed;
+  color: #9ca3af;
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 90px;
+  line-height: 1.5;
+}
+
+.form-input[type="date"] {
+  cursor: pointer;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
+  margin-top: 0;
+}
+
+.modal-footer button {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 100px;
+}
+
+.btn-cancelar {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.btn-cancelar:hover {
+  background: #d1d5db;
+}
+
+.btn-guardar {
+  background: #2e4360;
+  color: white;
+}
+
+.btn-guardar:hover:not(:disabled) {
+  background: #22396a;
+  box-shadow: 0 2px 8px rgba(34, 57, 106, 0.25);
+}
+
+.btn-guardar:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Botón editar en tabla de análisis */
+.btn-editar-analisis {
+  background: #038581;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-editar-analisis:hover {
+  background: #4178b8;
+  box-shadow: 0 2px 6px rgba(65, 120, 184, 0.3);
+  transform: translateY(-1px);
+}
+
+.analisis-td {
+  text-align: left;
+  padding: 8px 10px !important;
+  font-size: 0.78rem;
+  color: #374151;
+  line-height: 1.4;
+}
+
+.analisis-td-mes {
+  text-align: center;
+  font-weight: 600;
+  background: #f7f9fb !important;
+  color: #038581;
+}
+
+.analisis-td-fecha {
+  text-align: center;
+  font-size: 0.78rem;
+  color: #374151;
+}
+
+.analisis-td-actions {
+  text-align: center;
+  background: #f9fafb !important;
+  padding: 6px !important;
+}
+
+/* Estilos para la lista de tickets */
+.loading-tickets {
+  text-align: center;
+  padding: 32px;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.tickets-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Summary Cards */
+.tickets-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 3px;
+}
+
+.summary-card {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+}
+
+.card-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+
+.card-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* Card Variants */
+.card-total {
+  background: #fff;
+  border-color: #e2e8f0;
+}
+.card-total .card-label { color: #64748b; }
+.card-total .card-value { color: #1e293b; }
+
+.card-cerrados {
+  background: #ecfdf5; /* Light Green */
+  border-color: #d1fae5;
+}
+.card-cerrados .card-label { color: #059669; }
+.card-cerrados .card-value { color: #059669; }
+
+.card-progreso {
+  background: #fffbeb; /* Light Orange/Yellow */
+  border-color: #fef3c7;
+}
+.card-progreso .card-label { color: #d97706; }
+.card-progreso .card-value { color: #d97706; }
+
+.card-abiertos {
+  background: #fef2f2; /* Light Red */
+  border-color: #fee2e2;
+}
+.card-abiertos .card-label { color: #dc2626; }
+.card-abiertos .card-value { color: #dc2626; }
+
+
+/* Table Styles */
+.table-scroll-wrapper {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.tickets-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  min-width: 800px; /* Ensure scroll on small screens */
+}
+
+.tickets-table th {
+  text-align: left;
+  padding: 12px 16px;
+  background: #038581;
+  color: white;
+  font-weight: 700;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.tickets-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+  background: #fff;
+  vertical-align: middle;
+}
+
+.tickets-table tr:last-child td {
+  border-bottom: none;
+}
+
+.ticket-id {
+  font-weight: 600;
+  color: #22396a;
+}
+
+.ticket-responsable,
+.ticket-solicitante,
+.ticket-macro,
+.ticket-tipo {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+.ticket-fecha {
+  white-space: nowrap;
+  color: #64748b;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+  min-width: 80px;
+}
+
+.status-1 { /* Abierto */
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.status-2 { /* En Proceso */
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-3, .status-4 { /* Completado / Cerrado */
+  background: #dcfce7;
+  color: #166534;
+}
+
+/* Pagination Controls */
+.pagination-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.btn-pagination {
+  padding: 6px 12px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 6px;
+  color: #475569;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-pagination:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.btn-pagination:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #f8fafc;
+}
+
+.pagination-info {
+  font-size: 0.85rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+/* ── Gráfica de Mantenimiento ───────────────────────────────────────────────── */
+.mant-chart-desc {
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin: -8px 0 14px 0;
+}
+.mant-chart-nodata {
+  text-align: center;
+  padding: 40px 20px;
+  color: #9ca3af;
+  font-size: 0.9rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px dashed #e5e7eb;
+}
+.mant-chart-svg {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow: visible;
+}
+.mant-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  justify-content: center;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #f3f4f6;
+}
+.mant-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: #4b5563;
+}
+.mant-legend-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+</style>
+
+

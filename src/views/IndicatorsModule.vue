@@ -6,11 +6,12 @@
     </div>
     
     <div class="header">
-      <h1>{{ selectedView === 'informe' ? 'INFORME DE GESTIÓN' : 'AUTOMATIZACIÓN DE ACTIVIDADES DE MACROPROCESOS' }}</h1>
+      <h1>{{ selectedView === 'informe' ? 'INFORME DE GESTIÓN' : selectedView === 'mantenimiento' ? 'MANTENIMIENTOS' : 'AUTOMATIZACIÓN DE ACTIVIDADES DE MACROPROCESOS' }}</h1>
       <div class="header-controls">
         <select id="viewSelect" v-model="selectedView" class="year-selector">
           <option value="module">Automatización de actividades de macroprocesos</option>
           <option value="informe">Informe de Gestión</option>
+          <option value="mantenimiento">Mantenimientos</option>
         </select>
 
         <!-- Controles para la vista de Informe de Gestión -->
@@ -27,6 +28,23 @@
           </select>
           <button @click="actualizarInforme" class="refresh-btn" :disabled="cargandoInforme">
             {{ cargandoInforme ? '🔄 Cargando...' : '🔄 Actualizar' }}
+          </button>
+        </template>
+
+        <!-- Controles para la vista de Mantenimientos -->
+        <template v-if="selectedView === 'mantenimiento'">
+          <select v-model="anioCompartido" @change="onAnioChange" class="year-selector">
+            <option v-for="year in aniosDisponibles" :key="year" :value="year">{{ year }}</option>
+          </select>
+          <button @click="abrirModalCrearAnio" class="btn-crear-anio" title="Crear nuevo año">
+            + Crear año
+          </button>
+          <select v-model="mesMantenimiento" @change="onMesMantenimientoChange" class="month-selector">
+            <option value="">Todos los meses</option>
+            <option v-for="mes in listaMesesMantenimiento" :key="mes.numero" :value="mes.numero">{{ mes.nombre }}</option>
+          </select>
+          <button @click="actualizarMantenimiento" class="refresh-btn" :disabled="cargandoMantenimiento">
+            {{ cargandoMantenimiento ? '🔄 Cargando...' : '🔄 Actualizar' }}
           </button>
         </template>
 
@@ -65,8 +83,8 @@
     </div>
 
     <!-- Mostrar componente Indicators cuando se selecciona 'Informe de Gestión' -->
-    <Indicators 
-      v-if="selectedView === 'informe'" 
+    <Indicators
+      v-if="selectedView === 'informe'"
       ref="indicatorsRef"
       :anio-prop="anioCompartido"
       :mes-prop="mesInforme"
@@ -74,8 +92,18 @@
       @update:anios="aniosDisponibles = $event"
     />
 
+    <!-- Mostrar componente IndicatorsMantenimiento cuando se selecciona 'Mantenimientos' -->
+    <IndicatorsMantenimiento
+      v-if="selectedView === 'mantenimiento'"
+      ref="mantenimientoRef"
+      :anio-prop="anioCompartido"
+      :mes-prop="mesMantenimiento"
+      @update:loading="cargandoMantenimiento = $event"
+      @update:anios="aniosDisponibles = $event"
+    />
+
     <!-- Contenido del módulo de indicadores -->
-    <template v-else>
+    <template v-else-if="selectedView === 'module'">
     <section class="indicator-info">
       <h2>1. INFORMACIÓN DEL INDICADOR</h2>
       <table class="info-table">
@@ -634,6 +662,7 @@
 import { computed, ref, reactive, onMounted, watch } from 'vue'
 import axios from 'axios'
 import Indicators from './Indicators.vue'
+import IndicatorsMantenimiento from './IndicatorsMantenimiento.vue'
 
 const apiUrl = import.meta.env.VITE_API_URL
 
@@ -657,6 +686,15 @@ const guardandoAnio = ref(false)
 // Variables para el Informe de Gestión
 const mesInforme = ref('')
 const cargandoInforme = ref(false)
+
+// Variables para Mantenimientos
+const mantenimientoRef = ref(null)
+const mesMantenimiento = ref('')
+const cargandoMantenimiento = ref(false)
+const listaMesesMantenimiento = [
+  { numero: 3, nombre: 'Marzo' },
+  { numero: 9, nombre: 'Septiembre' }
+]
 const listaMesesInforme = [
   { numero: 1, nombre: 'Enero' },
   { numero: 2, nombre: 'Febrero' },
@@ -699,6 +737,13 @@ const onAnioChange = () => {
       indicatorsRef.value.anioActual = anioCompartido.value
       if (indicatorsRef.value.cargarIndicadores) {
         indicatorsRef.value.cargarIndicadores()
+      }
+    }
+  } else if (selectedView.value === 'mantenimiento') {
+    if (mantenimientoRef.value && mantenimientoRef.value.anioActual !== undefined) {
+      mantenimientoRef.value.anioActual = anioCompartido.value
+      if (mantenimientoRef.value.cargarIndicadores) {
+        mantenimientoRef.value.cargarIndicadores()
       }
     }
   } else {
@@ -762,6 +807,8 @@ const guardarNuevoAnio = async () => {
       // Recargar datos según la vista activa
       if (selectedView.value === 'informe') {
         actualizarInforme()
+      } else if (selectedView.value === 'mantenimiento') {
+        actualizarMantenimiento()
       } else {
         cargarIndicadoresEstrategicos()
       }
@@ -792,9 +839,21 @@ const actualizarInforme = () => {
   }
 }
 
-// Watch para cargar años cuando se cambia a la vista de informe
+const onMesMantenimientoChange = () => {
+  if (mantenimientoRef.value && mantenimientoRef.value.mesSeleccionadoFiltro !== undefined) {
+    mantenimientoRef.value.mesSeleccionadoFiltro = mesMantenimiento.value
+  }
+}
+
+const actualizarMantenimiento = () => {
+  if (mantenimientoRef.value && mantenimientoRef.value.cargarIndicadores) {
+    mantenimientoRef.value.cargarIndicadores()
+  }
+}
+
+// Watch para cargar años cuando se cambia a la vista de informe o mantenimiento
 watch(selectedView, (newView) => {
-  if (newView === 'informe' && aniosDisponibles.value.length === 0) {
+  if ((newView === 'informe' || newView === 'mantenimiento') && aniosDisponibles.value.length === 0) {
     cargarAniosDisponibles()
   }
 })
@@ -1536,7 +1595,7 @@ onMounted(async () => {
 
 .btn-crear-anio {
   padding: 6px 14px;
-  background: #266148;
+  background: #038581;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -1564,7 +1623,7 @@ onMounted(async () => {
 
 .refresh-btn {
   padding: 4px 18px;
-  background: #266148;
+  background: #038581;
   color: #fff;
   border: none;
   border-radius: 18px;
