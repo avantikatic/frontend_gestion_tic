@@ -106,32 +106,49 @@
                 <tr class="analisis-header-row">
                   <th class="analisis-th analisis-th-mes">MES</th>
                   <th class="analisis-th analisis-th-analisis">
-                    <div class="analisis-th-main">ANÁLISIS (CAUSAS PRINCIPALES)</div>
-                    <div class="analisis-th-sub">
-                      Para llegar a las causas principales:<br>
-                      * Identifique dónde se generan las desviaciones y su pareto.<br>
-                      * Filtre las causas con lluvia de ideas y análisis causa y efecto-7M<br>
-                      * Reduzca las causas a máximo 3 que se encuentren validadas (apoyo en la técnica 5 por qués)
+                    <div class="analisis-th-title">
+                      ANÁLISIS (CAUSAS PRINCIPALES)
+                      <span
+                        class="info-icon"
+                        title="Para llegar a las causas principales:&#10;• Identifique dónde se generan las desviaciones y su pareto.&#10;• Filtre las causas con lluvia de ideas y análisis causa y efecto-7M&#10;• Reduzca las causas a máximo 3 que se encuentren validadas (apoye en la técnica 5 por qué)"
+                      >i</span>
                     </div>
                   </th>
                   <th class="analisis-th analisis-th-acciones">
-                    <div class="analisis-th-main">ACCIONES A TOMAR FRENTE AL ANÁLISIS</div>
-                    <div class="analisis-th-sub">
-                      Liste las acciones con las que se van a eliminar/controlar las causas identificadas.<br>
-                      Puede relacionar alguna ACPM que se encuentre trabajando.
+                    <div class="analisis-th-title">
+                      ACCIONES A TOMAR FRENTE AL ANÁLISIS
+                      <span
+                        class="info-icon"
+                        title="Liste las acciones con las que se van a eliminar/controlar las causas identificadas.&#10;Puede relacionar alguna ACPM que se encuentre trabajando."
+                      >i</span>
                     </div>
                   </th>
                   <th class="analisis-th analisis-th-responsable">
-                    <div class="analisis-th-main">RESPONSABLE (NOMBRE-CARGO)</div>
-                    <div class="analisis-th-sub">Relacione el nombre y cargo del responsable de llevar a cabo las acciones definidas</div>
+                    <div class="analisis-th-title">
+                      RESPONSABLE (NOMBRE-CARGO)
+                      <span
+                        class="info-icon"
+                        title="Relacione el nombre y cargo del responsable de llevar a cabo las acciones definidas"
+                      >i</span>
+                    </div>
                   </th>
                   <th class="analisis-th analisis-th-fecha">
-                    <div class="analisis-th-main">FECHA DE COMPROMISO</div>
-                    <div class="analisis-th-sub">Indique la fecha (DD/MM/AAAA) en que la acción quedará ejecutada</div>
+                    <div class="analisis-th-title">
+                      FECHA DE COMPROMISO
+                      <span
+                        class="info-icon"
+                        title="Indique la fecha (DD/MM/AAAA) en que la acción quedará ejecutada"
+                      >i</span>
+                    </div>
                   </th>
                   <th class="analisis-th analisis-th-seguimiento">
-                    <div class="analisis-th-main">SEGUIMIENTO</div>
-                    <div class="analisis-th-sub">Relacione el estado de cumplimiento de las acciones definidas</div>
+                    <div class="analisis-th-title">
+                      SEGUIMIENTO
+                      <span
+                        class="info-icon"
+                        title="Relacione el estado de cumplimiento de las acciones definidas"
+                      >i</span>
+                    </div>
                   </th>
                   <th class="analisis-th analisis-th-actions"></th>
                 </tr>
@@ -155,9 +172,7 @@
                     <td class="analisis-td"></td>
                     <td class="analisis-td analisis-td-fecha"></td>
                     <td class="analisis-td"></td>
-                    <td class="analisis-td analisis-td-actions">
-                      <button class="btn-editar-analisis btn-agregar-row" @click="abrirModalAnalisis(null, mesRow.numero)" title="Agregar">+</button>
-                    </td>
+                    <td class="analisis-td analisis-td-actions"></td>
                   </template>
                 </tr>
               </tbody>
@@ -1712,37 +1727,6 @@ h2 {
   align-items: center;
   justify-content: center;
   gap: 6px;
-}
-
-.analisis-th-main {
-  font-weight: 700;
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  margin-bottom: 6px;
-}
-
-.analisis-th-sub {
-  font-weight: 400;
-  font-size: 0.72rem;
-  line-height: 1.4;
-  color: rgba(255, 255, 255, 0.88);
-  text-transform: none;
-  letter-spacing: 0;
-}
-
-.btn-agregar-row {
-  background: #038581 !important;
-  color: #fff !important;
-  border-radius: 50% !important;
-  width: 26px !important;
-  height: 26px !important;
-  font-size: 1.1rem !important;
-  font-weight: 700 !important;
-  padding: 0 !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
 }
 
 .analisis-empty-message {
