@@ -258,6 +258,7 @@ function sitePayload() {
     responsable_operativo:     siteForm.responsable_operativo,
     sistema_grabacion:         siteForm.sistema_grabacion,
     dias_almacenamiento_estimado: Number(siteForm.dias_almacenamiento_estimado || 0),
+    codigo_activo:             siteForm.codigo_activo,
     observaciones:             siteForm.observaciones,
   }
 }
@@ -265,7 +266,6 @@ function sitePayload() {
 function cameraPayload() {
   return {
     id_sede:                         Number(cameraForm.id_sede),
-    codigo_equipo_grabacion:         cameraForm.codigo_equipo_grabacion,
     ubicacion_fisica:                cameraForm.ubicacion_fisica,
     id_estado_camara:                Number(cameraForm.id_estado_camara),
     dias_almacenamiento:             Number(cameraForm.dias_almacenamiento || 0),
@@ -290,7 +290,7 @@ function rolePayload() {
 
 // ── Valores por defecto ────────────────────────────────────────────────────────
 function emptySite() {
-  return { id_sede: null, nombre: '', ubicacion_general: '', responsable_operativo: '', sistema_grabacion: '', dias_almacenamiento_estimado: 0, observaciones: '' }
+  return { id_sede: null, nombre: '', ubicacion_general: '', responsable_operativo: '', sistema_grabacion: '', dias_almacenamiento_estimado: 0, codigo_activo: '', observaciones: '' }
 }
 function emptyCamera() {
   return { id_camara: null, id_sede: '', codigo_equipo_grabacion: '', ubicacion_fisica: '', id_estado_camara: null, dias_almacenamiento: 0, id_metodo_backup: null, dias_retencion_backup: 0, fecha_instalacion_actualizacion: new Date().toISOString().slice(0, 10), observaciones: '' }
@@ -420,6 +420,7 @@ function label(value) {
         <label>Responsable operativo <input v-model="siteForm.responsable_operativo" /></label>
         <label>Sistema de grabacion <input v-model="siteForm.sistema_grabacion" placeholder="NVR, DVR, NAS" /></label>
         <label>Retencion estimada (dias) <input v-model.number="siteForm.dias_almacenamiento_estimado" type="number" min="0" /></label>
+        <label>Codigo de activo <input v-model="siteForm.codigo_activo" /></label>
         <label>Observaciones <textarea v-model="siteForm.observaciones"></textarea></label>
         <div class="cv-form-actions">
           <button class="cv-btn-primary" type="submit" :disabled="crearSedeMutation.isPending.value || actualizarSedeMutation.isPending.value">Guardar sede</button>
@@ -443,7 +444,7 @@ function label(value) {
             </div>
             <span class="cv-pill">{{ site.dias_almacenamiento_estimado }} dias</span>
           </header>
-          <p>{{ site.sistema_grabacion || 'Sistema de grabacion no definido' }}</p>
+          <p>{{ site.sistema_grabacion || 'Sistema de grabacion no definido' }}<span v-if="site.codigo_activo"> · <strong>{{ site.codigo_activo }}</strong></span></p>
           <div class="cv-row-actions">
             <button class="cv-btn-table" type="button" @click="editSite(site)">Editar</button>
             <button class="cv-btn-danger" type="button" @click="removeSite(site.id_sede)">Eliminar</button>
@@ -470,7 +471,14 @@ function label(value) {
             <option v-for="site in sites" :key="site.id_sede" :value="site.id_sede">{{ site.nombre }}</option>
           </select>
         </label>
-        <label>Codigo NVR/DVR <input v-model="cameraForm.codigo_equipo_grabacion" required placeholder="NVR-CEDI-01" /></label>
+        <div v-if="cameraForm.id_camara" class="cv-auto-code">
+          <span class="cv-muted-label">Codigo equipo</span>
+          <strong>{{ cameraForm.codigo_equipo_grabacion }}</strong>
+        </div>
+        <!-- <div v-else class="cv-auto-code cv-auto-code--hint">
+          <span>Codigo</span>
+          <span class="cv-muted-label">Se asignara automaticamente al guardar (ej: DVR-CAM-12)</span>
+        </div> -->
         <label>Ubicacion fisica <input v-model="cameraForm.ubicacion_fisica" required /></label>
         <label>
           Estado
@@ -481,10 +489,10 @@ function label(value) {
         </label>
         <div class="cv-two-cols">
           <label>Almacenamiento (dias) <input v-model.number="cameraForm.dias_almacenamiento" type="number" min="0" /></label>
-          <label>Backup (dias) <input v-model.number="cameraForm.dias_retencion_backup" type="number" min="0" /></label>
+          <label>Retencion (dias) <input v-model.number="cameraForm.dias_retencion_backup" type="number" min="0" /></label>
         </div>
         <label>
-          Metodo de backup
+          Metodo de almacenamiento
           <select v-model.number="cameraForm.id_metodo_backup">
             <option :value="null" disabled>Seleccionar metodo</option>
             <option v-for="m in catalogos.metodos_backup" :key="m.id" :value="m.id">{{ m.nombre }}</option>
@@ -510,7 +518,7 @@ function label(value) {
           <table>
             <thead>
               <tr>
-                <th>Equipo</th><th>Sede</th><th>Ubicacion</th><th>Estado</th><th>Backup</th><th></th>
+                <th>Equipo</th><th>Sede</th><th>Ubicacion</th><th>Estado</th><th>Almacenamiento</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -901,6 +909,11 @@ function label(value) {
 .cv-combo__null:hover      { background: #f0f6f5; }
 .cv-combo__selected        { color: var(--cv-accent); font-weight: 700; }
 .cv-combo__empty           { color: var(--cv-muted); font-style: italic; cursor: default; }
+
+.cv-auto-code { display: flex; flex-direction: column; gap: 4px; }
+.cv-auto-code span { font-size: .88rem; font-weight: 700; color: #344246; }
+.cv-auto-code strong { font-size: .9rem; color: var(--cv-accent); letter-spacing: .03em; }
+.cv-auto-code--hint strong, .cv-muted-label { font-weight: 400; color: var(--cv-muted); font-size: .82rem; }
 
 @media (max-width: 1100px) {
   .cv-stats-grid    { grid-template-columns: repeat(2,minmax(0,1fr)); }
