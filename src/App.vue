@@ -15,6 +15,7 @@
         <router-link to="/control-licencias" class="tab" :class="{active: $route.name==='license-control'}">Control Licencias</router-link>
         <router-link to="/gsc" class="tab" :class="{active: $route.name==='gsc'}">GSC TIC</router-link>
         <router-link to="/contingencia" class="tab" :class="{active: $route.name==='contingencia'}">Contingencia</router-link>
+        <router-link to="/cctv" class="tab" :class="{active: $route.name==='cctv'}">CCTV</router-link>
       </nav>
 
       <div class="who"><span class="muted">soporte@avantika.com.co</span></div>
