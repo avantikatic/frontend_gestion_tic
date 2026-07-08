@@ -1,4 +1,5 @@
 import { createApp } from 'vue'
+import '@fortawesome/fontawesome-free/css/all.min.css'
 import { VueQueryPlugin, QueryClient } from '@tanstack/vue-query'
 import App from './App.vue'
 import router from './router'

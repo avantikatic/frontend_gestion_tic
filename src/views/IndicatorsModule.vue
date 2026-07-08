@@ -6,12 +6,20 @@
     </div>
     
     <div class="header">
-      <h1>{{ selectedView === 'informe' ? 'INFORME DE GESTIÓN' : selectedView === 'mantenimiento' ? 'MANTENIMIENTOS' : 'AUTOMATIZACIÓN DE ACTIVIDADES DE MACROPROCESOS' }}</h1>
+      <h1>{{
+        selectedView === 'informe'              ? 'INFORME DE GESTIÓN' :
+        selectedView === 'mantenimiento'        ? 'MANTENIMIENTOS' :
+        selectedView === 'oportunidades-acpm'   ? 'OPORTUNIDADES ACPM' :
+        selectedView === 'eficacia-acpm'        ? 'EFICACIA ACPM' :
+        'AUTOMATIZACIÓN DE ACTIVIDADES DE MACROPROCESOS'
+      }}</h1>
       <div class="header-controls">
         <select id="viewSelect" v-model="selectedView" class="year-selector">
           <option value="module">Automatización de actividades de macroprocesos</option>
           <option value="informe">Informe de Gestión</option>
           <option value="mantenimiento">Mantenimientos</option>
+          <option value="oportunidades-acpm">Oportunidades ACPM</option>
+          <option value="eficacia-acpm">Eficacia ACPM</option>
         </select>
 
         <!-- Controles para la vista de Informe de Gestión -->
@@ -46,6 +54,28 @@
           <button @click="actualizarMantenimiento" class="refresh-btn" :disabled="cargandoMantenimiento">
             {{ cargandoMantenimiento ? '🔄 Cargando...' : '🔄 Actualizar' }}
           </button>
+        </template>
+
+        <!-- Controles para Oportunidades ACPM -->
+        <template v-if="selectedView === 'oportunidades-acpm'">
+          <select v-model="anioCompartido" @change="onAnioChange" class="year-selector">
+            <option v-for="year in aniosDisponibles" :key="year" :value="year">{{ year }}</option>
+          </select>
+          <select v-model="mesOportunidadesAcpm" class="month-selector">
+            <option value="">Todos los meses</option>
+            <option v-for="mes in listaMesesTodos" :key="mes.numero" :value="mes.numero">{{ mes.nombre }}</option>
+          </select>
+        </template>
+
+        <!-- Controles para Eficacia ACPM -->
+        <template v-if="selectedView === 'eficacia-acpm'">
+          <select v-model="anioCompartido" @change="onAnioChange" class="year-selector">
+            <option v-for="year in aniosDisponibles" :key="year" :value="year">{{ year }}</option>
+          </select>
+          <select v-model="mesEficaciaAcpm" class="month-selector">
+            <option value="">Todos los meses</option>
+            <option v-for="mes in listaMesesTodos" :key="mes.numero" :value="mes.numero">{{ mes.nombre }}</option>
+          </select>
         </template>
 
         <!-- Controles para la vista de Automatización -->
@@ -100,6 +130,20 @@
       :mes-prop="mesMantenimiento"
       @update:loading="cargandoMantenimiento = $event"
       @update:anios="aniosDisponibles = $event"
+    />
+
+    <!-- Oportunidades ACPM -->
+    <IndicatorsOportunidadesAcpm
+      v-if="selectedView === 'oportunidades-acpm'"
+      :anio-prop="anioCompartido"
+      :mes-prop="mesOportunidadesAcpm"
+    />
+
+    <!-- Eficacia ACPM -->
+    <IndicatorsEficaciaAcpm
+      v-if="selectedView === 'eficacia-acpm'"
+      :anio-prop="anioCompartido"
+      :mes-prop="mesEficaciaAcpm"
     />
 
     <!-- Contenido del módulo de indicadores -->
@@ -663,6 +707,8 @@ import { computed, ref, reactive, onMounted, watch } from 'vue'
 import axios from 'axios'
 import Indicators from './Indicators.vue'
 import IndicatorsMantenimiento from './IndicatorsMantenimiento.vue'
+import IndicatorsOportunidadesAcpm from './IndicatorsOportunidadesAcpm.vue'
+import IndicatorsEficaciaAcpm from './IndicatorsEficaciaAcpm.vue'
 
 const apiUrl = import.meta.env.VITE_API_URL
 
@@ -709,6 +755,11 @@ const listaMesesInforme = [
   { numero: 11, nombre: 'Noviembre' },
   { numero: 12, nombre: 'Diciembre' }
 ]
+
+// Variables para Oportunidades ACPM y Eficacia ACPM
+const mesOportunidadesAcpm = ref('')
+const mesEficaciaAcpm = ref('')
+const listaMesesTodos = listaMesesInforme
 
 // Funciones compartidas para gestión de años
 const cargarAniosDisponibles = async () => {

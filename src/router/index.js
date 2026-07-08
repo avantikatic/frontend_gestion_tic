@@ -7,6 +7,7 @@ import Availability from '@/views/Availability.vue'
 import IndicatorsModule from '@/views/IndicatorsModule.vue'
 import ControlLicenciaView from '../views/ControlLicenciaView.vue'
 import GestionContinuidadApp from '../views/GestionContinuidadApp.vue'
+import Contingencia from '../views/Contingencia.vue'
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
@@ -19,6 +20,7 @@ const router = createRouter({
         { path: '/indicadores', name: 'indicators', component: IndicatorsModule },
         { path: '/control-licencias', name: 'license-control', component: ControlLicenciaView },
         { path: '/gsc', name: 'gsc', component: GestionContinuidadApp },
+        { path: '/contingencia', name: 'contingencia', component: Contingencia },
         { path: '/:pathMatch(.*)*', redirect: '/' },
     ],
     scrollBehavior() { return { top: 0 } }
