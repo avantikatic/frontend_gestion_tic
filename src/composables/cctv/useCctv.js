@@ -145,24 +145,26 @@ export function useCctvCargos() {
   }
 }
 
-// ── Registros (cambios, revisiones, incidentes) ────────────────────────────────
+// ── Registros (cambios, revisiones, incidentes) — paginacion por backend ──────
 
-export function useCctvRegistros() {
+const EMPTY_PAG = { items: [], total: 0, page: 1, page_size: 15, total_pages: 1 }
+
+export function useCctvRegistros(pag) {
   const qc = useQueryClient()
 
   const { data: cambiosData } = useQuery({
-    queryKey: ['cctv-cambios'],
-    queryFn:  () => post(`${BASE}/listar_cambios`),
+    queryKey: computed(() => ['cctv-cambios', pag.novedades, pag.perPage]),
+    queryFn:  () => post(`${BASE}/listar_cambios`,    { page: pag.novedades,   page_size: pag.perPage }),
   })
 
   const { data: revisionesData } = useQuery({
-    queryKey: ['cctv-revisiones'],
-    queryFn:  () => post(`${BASE}/listar_revisiones`),
+    queryKey: computed(() => ['cctv-revisiones', pag.revisiones, pag.perPage]),
+    queryFn:  () => post(`${BASE}/listar_revisiones`, { page: pag.revisiones,  page_size: pag.perPage }),
   })
 
   const { data: incidentesData } = useQuery({
-    queryKey: ['cctv-incidentes'],
-    queryFn:  () => post(`${BASE}/listar_incidentes`),
+    queryKey: computed(() => ['cctv-incidentes', pag.incidentes, pag.perPage]),
+    queryFn:  () => post(`${BASE}/listar_incidentes`, { page: pag.incidentes,  page_size: pag.perPage }),
   })
 
   const crearChangelogMutation = useMutation({
@@ -186,9 +188,12 @@ export function useCctvRegistros() {
   })
 
   return {
-    changelogs: computed(() => cambiosData.value   ?? []),
-    reviews:    computed(() => revisionesData.value ?? []),
-    incidents:  computed(() => incidentesData.value ?? []),
+    cambiosPag:    computed(() => cambiosData.value     ?? EMPTY_PAG),
+    revisionesPag: computed(() => revisionesData.value  ?? EMPTY_PAG),
+    incidentesPag: computed(() => incidentesData.value  ?? EMPTY_PAG),
+    changelogs:    computed(() => cambiosData.value?.items    ?? []),
+    reviews:       computed(() => revisionesData.value?.items ?? []),
+    incidents:     computed(() => incidentesData.value?.items ?? []),
     crearChangelogMutation,
     crearRevisionMutation,
     crearIncidenteMutation,

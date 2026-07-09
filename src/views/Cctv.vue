@@ -26,7 +26,12 @@ const { sites, sitesLoading, crearSedeMutation, actualizarSedeMutation, eliminar
 const { cameras, camerasLoading, crearCamaraMutation, actualizarCamaraMutation, eliminarCamaraMutation } = useCctvCamaras()
 const { camarasPag, paginacion, camarasPagLoading } = useCctvCamarasPaginado(camarasFiltros)
 const { roles, rolesLoading, crearCargoMutation, actualizarCargoMutation, eliminarCargoMutation }        = useCctvCargos()
-const { changelogs, reviews, incidents, crearChangelogMutation, crearRevisionMutation, crearIncidenteMutation } = useCctvRegistros()
+// ── Paginacion de tabs de registros ───────────────────────────────────────────
+const recPag = reactive({ revisiones: 1, novedades: 1, incidentes: 1, perPage: 5 })
+watch(() => recPag.perPage, () => { recPag.revisiones = 1; recPag.novedades = 1; recPag.incidentes = 1 })
+
+const { changelogs, reviews, incidents, cambiosPag, revisionesPag, incidentesPag,
+        crearChangelogMutation, crearRevisionMutation, crearIncidenteMutation } = useCctvRegistros(recPag)
 const { catalogos } = useCctvCatalogos()
 
 const loading = computed(() => dashLoading.value || sitesLoading.value || camerasLoading.value || rolesLoading.value)
@@ -236,6 +241,7 @@ async function saveChangeLog() {
   try {
     await crearChangelogMutation.mutateAsync({ ...changeLogForm, usuario_creacion: USUARIO })
     Object.assign(changeLogForm, emptyChangeLog())
+    recPag.novedades = 1
   } catch (e) {
     error.value = e?.response?.data?.message || 'Error guardando cambio.'
   }
@@ -246,6 +252,7 @@ async function saveReview() {
   try {
     await crearRevisionMutation.mutateAsync({ ...reviewForm, usuario_creacion: USUARIO })
     Object.assign(reviewForm, emptyReview())
+    recPag.revisiones = 1
   } catch (e) {
     error.value = e?.response?.data?.message || 'Error guardando revision.'
   }
@@ -256,6 +263,7 @@ async function saveIncident() {
   try {
     await crearIncidenteMutation.mutateAsync({ ...incidentForm, usuario_creacion: USUARIO })
     Object.assign(incidentForm, emptyIncident())
+    recPag.incidentes = 1
   } catch (e) {
     error.value = e?.response?.data?.message || 'Error guardando incidente.'
   }
@@ -317,36 +325,10 @@ function emptyIncident() {
   return { fecha_incidente: new Date().toISOString().slice(0, 10), id_sede: null, id_camara: null, titulo: '', id_severidad: null, descripcion: '', accion_correctiva: '', id_estado_incidente: null }
 }
 
-// Historial unificado: mezcla changelogs + revisiones + incidentes ordenados por fecha_creacion desc
-const historialUnificado = computed(() => {
-  const logs = changelogs.value.map(l => ({
-    key:   `log-${l.id_registro_cambio}`,
-    tipo:  'cambio',
-    fecha: l.fecha_cambio,
-    titulo: l.descripcion,
-    sub:   l.nombre_sede || 'General',
-    _sort: l.fecha_creacion || l.fecha_cambio || '',
-  }))
-  const revs = reviews.value.map(r => ({
-    key:   `rev-${r.id_revision}`,
-    tipo:  'revision',
-    fecha: r.fecha_revision,
-    titulo: 'Revision periodica',
-    sub:   r.nombre_sede ? `Sede: ${r.nombre_sede}` : (r.hallazgos || 'Sin hallazgos'),
-    _sort: r.fecha_creacion || r.fecha_revision || '',
-  }))
-  const incs = incidents.value.map(i => ({
-    key:   `inc-${i.id_incidente}`,
-    tipo:  'incidente',
-    fecha: i.fecha_incidente,
-    titulo: i.titulo,
-    sub:   [i.estado, i.severidad].filter(Boolean).join(' · ') || '',
-    _sort: i.fecha_creacion || i.fecha_incidente || '',
-  }))
-  return [...logs, ...revs, ...incs]
-    .sort((a, b) => b._sort.localeCompare(a._sort))
-    .slice(0, 15)
-})
+const recCurrentPag   = computed(() => recordsTab.value === 'revisiones' ? revisionesPag.value : recordsTab.value === 'novedades' ? cambiosPag.value : incidentesPag.value)
+const recCurrentPage  = computed(() => recCurrentPag.value.page)
+const recTotalPages   = computed(() => recCurrentPag.value.total_pages)
+const recTotal        = computed(() => recCurrentPag.value.total)
 
 // KPIs dinamicos por sede (camaras por sede, computado del estado local)
 const camerasPerSite = computed(() =>
@@ -415,7 +397,7 @@ function label(value) {
         <article v-for="s in camerasPerSite" :key="s.nombre" class="cv-metric cv-metric--site">
           <span>{{ s.nombre }}</span>
           <strong>{{ s.camaras }}</strong>
-          <em>camaras</em>
+          <em>cámaras</em>
         </article>
       </div>
 
@@ -430,18 +412,18 @@ function label(value) {
           <table>
             <thead>
               <tr>
-                <th>Sede</th><th>Ubicacion</th><th>Camaras</th><th>Almacenamiento</th>
+                <th>Sede</th><th>Ubicacion</th><th>Cámaras</th><!-- <th>Almacenamiento</th> -->
               </tr>
             </thead>
             <tbody>
               <tr v-if="!dashboard.por_sede.length">
-                <td colspan="4" style="text-align:center;color:#6b7280">Sin sedes registradas. Agrega una sede para ver el resumen.</td>
+                <td colspan="3" style="text-align:center;color:#6b7280">Sin sedes registradas. Agrega una sede para ver el resumen.</td>
               </tr>
               <tr v-for="site in dashboard.por_sede" :key="site.id_sede">
                 <td><strong>{{ site.nombre }}</strong></td>
                 <td>{{ site.ubicacion_general }}</td>
                 <td>{{ site.camaras }}</td>
-                <td>{{ site.dias_almacenamiento }} dias</td>
+                <!-- <td>{{ site.dias_almacenamiento }} dias</td> -->
               </tr>
             </tbody>
           </table>
@@ -854,7 +836,6 @@ function label(value) {
                 <td><span class="cv-pill" :class="r.almacenamiento_verificado ? 'ok' : 'danger'">{{ r.almacenamiento_verificado ? 'Si' : 'No' }}</span></td>
                 <td><span class="cv-pill" :class="r.accesos_verificados ? 'ok' : 'danger'">{{ r.accesos_verificados ? 'Si' : 'No' }}</span></td>
                 <td>{{ r.hallazgos || '—' }}</td>
-                <!-- <td>{{ r.proxima_revision || '—' }}</td> -->
               </tr>
             </tbody>
           </table>
@@ -899,6 +880,19 @@ function label(value) {
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- Paginacion compartida de los 3 tabs -->
+        <div v-if="recTotal > 0" class="cv-rec-pag">
+          <button class="cv-btn-ghost cv-pag-btn" :disabled="recCurrentPage <= 1" @click="recPag[recordsTab]--">&#8592;</button>
+          <span class="cv-pag-info">{{ recCurrentPage }} / {{ recTotalPages }} · {{ recTotal }} registros</span>
+          <button class="cv-btn-ghost cv-pag-btn" :disabled="recCurrentPage >= recTotalPages" @click="recPag[recordsTab]++">&#8594;</button>
+          <select v-model.number="recPag.perPage" class="cv-rec-perpage" style="width:auto">
+            <option :value="5">5 por pagina</option>
+            <option :value="10">10 por pagina</option>
+            <option :value="25">25 por pagina</option>
+            <option :value="50">50 por pagina</option>
+          </select>
         </div>
       </section>
 
@@ -1008,11 +1002,15 @@ function label(value) {
 /* ── Inputs auto-rellenados ─────────────────────────────────────────────────── */
 .cv-autofilled { background: #f0faf8; border-color: #b2dbd6; color: var(--cv-accent-s); font-weight: 700; }
 
-/* ── Paginacion ─────────────────────────────────────────────────────────────── */
+/* ── Paginacion camaras ─────────────────────────────────────────────────────── */
 .cv-pagination { display: flex; align-items: center; gap: 10px; justify-content: center; padding-top: 4px; }
 .cv-pag-btn    { min-width: 36px; padding: 0 10px; font-size: 1rem; }
 .cv-pag-info   { font-size: .84rem; color: var(--cv-muted); }
 .cv-pag-total  { font-size: .84rem; color: var(--cv-muted); text-align: center; margin: 0; }
+
+/* ── Paginacion tabs de registros ───────────────────────────────────────────── */
+.cv-rec-pag { display: flex; align-items: center; gap: 8px; justify-content: center; padding-top: 10px; border-top: 1px solid var(--cv-line); margin-top: 4px; }
+.cv-rec-perpage { width: auto; min-height: 34px; padding: 0 8px; border: 1px solid var(--cv-line); border-radius: 8px; font: inherit; font-size: .82rem; color: var(--cv-ink); background: #fff; cursor: pointer; max-width: 130px; }
 
 /* ── Combobox buscable ──────────────────────────────────────────────────────── */
 .cv-combo { position: relative; }
