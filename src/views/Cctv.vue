@@ -135,7 +135,7 @@ function cameraLabel(id) {
 const views = [
   { id: 'dashboard', label: 'Panel' },
   { id: 'sites',     label: 'Sedes' },
-  { id: 'cameras',   label: 'Camaras' },
+  { id: 'cameras',   label: 'Cámaras' },
   { id: 'roles',     label: 'Cargos y permisos' },
   { id: 'records',   label: 'Registros' },
 ]
@@ -405,7 +405,7 @@ function label(value) {
         <div class="cv-section-head">
           <div>
             <h2>Resumen por sede</h2>
-            <p>Control de camaras, almacenamiento y backups por ubicacion.</p>
+            <p>Control de camaras y almacenamiento.</p>
           </div>
         </div>
         <div class="cv-table-wrap">
