@@ -12,8 +12,9 @@ import {
 
 const USUARIO = 'sistemas@avantika.com.co'
 
-const activeView = ref('dashboard')
-const error      = ref('')
+const activeView  = ref('dashboard')
+const recordsTab  = ref('revisiones')
+const error       = ref('')
 
 // Filtro + paginacion de la tabla de camaras
 const camarasFiltros = reactive({ id_sede: null, page: 1 })
@@ -310,7 +311,7 @@ function emptyChangeLog() {
   return { fecha_cambio: new Date().toISOString().slice(0, 10), id_sede: null, id_camara: null, descripcion: '', observaciones: '', cargo_responsable: 'Coordinador TIC' }
 }
 function emptyReview() {
-  return { id_sede: null, fecha_revision: new Date().toISOString().slice(0, 10), cargo_revisor: 'Coordinador TIC', camaras_activas: 0, camaras_mantenimiento: 0, camaras_inactivas: 0, almacenamiento_verificado: false, backups_verificados: false, accesos_verificados: false, hallazgos: '', proxima_revision: '' }
+  return { id_sede: null, id_responsable: null, fecha_revision: new Date().toISOString().slice(0, 10), camaras_activas: 0, camaras_mantenimiento: 0, camaras_inactivas: 0, almacenamiento_verificado: false, backups_verificados: false, accesos_verificados: false, hallazgos: '', proxima_revision: '' }
 }
 function emptyIncident() {
   return { fecha_incidente: new Date().toISOString().slice(0, 10), id_sede: null, id_camara: null, titulo: '', id_severidad: null, descripcion: '', accion_correctiva: '', id_estado_incidente: null }
@@ -387,7 +388,7 @@ function label(value) {
     <!-- Topbar de la sección -->
     <header class="cv-topbar">
       <div>
-        <p class="cv-eyebrow">Procedimiento de administracion CCTV · PR-TIC-06</p>
+        <p class="cv-eyebrow">Administracion CCTV · PR-TIC-06</p>
         <h1 class="cv-title">{{ viewTitle }}</h1>
       </div>
       <div class="cv-topbar-actions">
@@ -672,7 +673,13 @@ function label(value) {
       <form class="cv-panel" @submit.prevent="saveReview">
         <h2>Revision periodica</h2>
         <label>Fecha <input v-model="reviewForm.fecha_revision" type="date" required /></label>
-        <label>Responsable <input v-model="reviewForm.cargo_revisor" required /></label>
+        <label>
+          Responsable
+          <select v-model.number="reviewForm.id_responsable" required>
+            <option :value="null" disabled>Seleccionar responsable</option>
+            <option v-for="r in catalogos.responsables_tic" :key="r.id" :value="r.id">{{ r.nombre }}</option>
+          </select>
+        </label>
         <label>
           Sede
           <select v-model.number="reviewForm.id_sede">
@@ -697,7 +704,6 @@ function label(value) {
         <fieldset class="cv-fieldset">
           <legend>Validaciones</legend>
           <label class="cv-check-row"><input v-model="reviewForm.almacenamiento_verificado" type="checkbox" /> Almacenamiento</label>
-          <label class="cv-check-row"><input v-model="reviewForm.backups_verificados" type="checkbox" /> Backups</label>
           <label class="cv-check-row"><input v-model="reviewForm.accesos_verificados" type="checkbox" /> Accesos</label>
         </fieldset>
         <label>Hallazgos <textarea v-model="reviewForm.hallazgos"></textarea></label>
@@ -816,19 +822,84 @@ function label(value) {
         <button class="cv-btn-primary" type="submit" :disabled="crearIncidenteMutation.isPending.value">Guardar incidente</button>
       </form>
 
-      <!-- Historial unificado -->
+      <!-- Historial por tabs -->
       <section class="cv-panel cv-history">
-        <h2>Ultimos registros</h2>
-        <div v-if="!historialUnificado.length" class="cv-empty">Sin registros guardados aun.</div>
-        <article v-for="item in historialUnificado" :key="item.key" class="cv-history-item">
-          <div class="cv-history-head">
-            <span class="cv-pill cv-history-tipo" :class="item.tipo">
-              {{ item.tipo === 'cambio' ? 'Novedad' : item.tipo === 'revision' ? 'Revision' : 'Incidente' }}
-            </span>
-            <strong>{{ item.fecha }} · {{ item.titulo }}</strong>
-          </div>
-          <span>{{ item.sub }}</span>
-        </article>
+        <div class="cv-rec-tabs">
+          <button class="cv-rec-tab" :class="{ active: recordsTab === 'revisiones' }" type="button" @click="recordsTab = 'revisiones'">
+            Revisiones <span class="cv-rec-tab-count">{{ reviews.length }}</span>
+          </button>
+          <button class="cv-rec-tab" :class="{ active: recordsTab === 'novedades' }" type="button" @click="recordsTab = 'novedades'">
+            Novedades <span class="cv-rec-tab-count">{{ changelogs.length }}</span>
+          </button>
+          <button class="cv-rec-tab" :class="{ active: recordsTab === 'incidentes' }" type="button" @click="recordsTab = 'incidentes'">
+            Incidentes <span class="cv-rec-tab-count">{{ incidents.length }}</span>
+          </button>
+        </div>
+
+        <!-- Tab: Revisiones -->
+        <div v-if="recordsTab === 'revisiones'" class="cv-table-wrap">
+          <div v-if="!reviews.length" class="cv-empty">Sin revisiones registradas.</div>
+          <table v-else>
+            <thead>
+              <tr><th>Fecha</th><th>Sede</th><th>Responsable</th><th>Activas</th><th>Mant.</th><th>Inactivas</th><th>Almac.</th><th>Accesos</th><th>Hallazgos</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="r in reviews" :key="r.id_revision">
+                <td>{{ r.fecha_revision }}</td>
+                <td>{{ r.nombre_sede || 'Todas' }}</td>
+                <td>{{ r.nombre_responsable || '—' }}</td>
+                <td>{{ r.camaras_activas }}</td>
+                <td>{{ r.camaras_mantenimiento }}</td>
+                <td>{{ r.camaras_inactivas }}</td>
+                <td><span class="cv-pill" :class="r.almacenamiento_verificado ? 'ok' : 'danger'">{{ r.almacenamiento_verificado ? 'Si' : 'No' }}</span></td>
+                <td><span class="cv-pill" :class="r.accesos_verificados ? 'ok' : 'danger'">{{ r.accesos_verificados ? 'Si' : 'No' }}</span></td>
+                <td>{{ r.hallazgos || '—' }}</td>
+                <!-- <td>{{ r.proxima_revision || '—' }}</td> -->
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Tab: Novedades -->
+        <div v-if="recordsTab === 'novedades'" class="cv-table-wrap">
+          <div v-if="!changelogs.length" class="cv-empty">Sin novedades registradas.</div>
+          <table v-else>
+            <thead>
+              <tr><th>Fecha</th><th>Sede</th><th>Camara</th><th>Descripcion</th><th>Observaciones</th><th>Cargo</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="l in changelogs" :key="l.id_registro_cambio">
+                <td>{{ l.fecha_cambio }}</td>
+                <td>{{ l.nombre_sede || '—' }}</td>
+                <td>{{ l.codigo_camara || '—' }}</td>
+                <td>{{ l.descripcion }}</td>
+                <td>{{ l.observaciones || '—' }}</td>
+                <td>{{ l.cargo_responsable || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Tab: Incidentes -->
+        <div v-if="recordsTab === 'incidentes'" class="cv-table-wrap">
+          <div v-if="!incidents.length" class="cv-empty">Sin incidentes registrados.</div>
+          <table v-else>
+            <thead>
+              <tr><th>Fecha</th><th>Titulo</th><th>Sede</th><th>Camara</th><th>Severidad</th><th>Estado</th><th>Descripcion</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="i in incidents" :key="i.id_incidente">
+                <td>{{ i.fecha_incidente }}</td>
+                <td><strong>{{ i.titulo }}</strong></td>
+                <td>{{ i.nombre_sede || '—' }}</td>
+                <td>{{ i.codigo_camara || '—' }}</td>
+                <td><span class="cv-pill" :class="badgeClass(i.severidad_valor)">{{ i.severidad }}</span></td>
+                <td><span class="cv-pill" :class="badgeClass(i.estado_valor)">{{ i.estado }}</span></td>
+                <td>{{ i.descripcion }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
     </section>
@@ -920,14 +991,12 @@ function label(value) {
 .cv-card h3 { margin: 0 0 3px; font-size: .95rem; }
 .cv-card p { margin: 0; color: var(--cv-muted); font-size: .86rem; }
 
-.cv-history-item { border: 1px solid var(--cv-line); border-radius: 8px; padding: 11px 13px; display: grid; gap: 5px; background: #fff; }
-.cv-history-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.cv-history-item strong { font-size: .88rem; color: var(--cv-ink); }
-.cv-history-item span   { font-size: .82rem; color: var(--cv-muted); }
-.cv-history-tipo        { font-size: .72rem; min-height: 22px; padding: 2px 8px; flex-shrink: 0; }
-.cv-history-tipo.cambio    { background: #eff6ff; color: #1d4ed8; }
-.cv-history-tipo.revision  { background: #f0fdf4; color: #15803d; }
-.cv-history-tipo.incidente { background: #fff1ef; color: var(--cv-danger); }
+/* ── Tabs de registros ──────────────────────────────────────────────────────── */
+.cv-rec-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--cv-line); margin-bottom: 14px; }
+.cv-rec-tab  { border: none; background: transparent; padding: 9px 16px; font: inherit; font-size: .88rem; font-weight: 700; color: var(--cv-muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; display: flex; align-items: center; gap: 6px; }
+.cv-rec-tab:hover  { color: var(--cv-ink); }
+.cv-rec-tab.active { color: var(--cv-accent); border-bottom-color: var(--cv-accent); }
+.cv-rec-tab-count  { background: #e9f5f3; color: var(--cv-accent-s); border-radius: 999px; font-size: .72rem; font-weight: 800; padding: 1px 7px; min-width: 20px; text-align: center; }
 
 .cv-pill { border-radius: 999px; background: #edf2f4; color: #3f5054; padding: 4px 10px; font-size: .74rem; font-weight: 800; display: inline-flex; align-items: center; min-height: 26px; white-space: nowrap; }
 .cv-pill.ok     { background: #e7f7ee; color: var(--cv-ok); }

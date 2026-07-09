@@ -10,7 +10,7 @@ const post = (url, body = {}) => axios.post(url, body, { headers: H }).then(r =>
 // ── Catálogos ──────────────────────────────────────────────────────────────────
 
 export function useCctvCatalogos() {
-  const EMPTY = { estados_camara: [], metodos_backup: [], niveles_acceso: [], severidades: [], estados_incidente: [] }
+  const EMPTY = { estados_camara: [], metodos_backup: [], niveles_acceso: [], severidades: [], estados_incidente: [], responsables_tic: [] }
 
   const { data } = useQuery({
     queryKey:  ['cctv-catalogos'],
