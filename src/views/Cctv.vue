@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import {
   useCctvDashboard,
   useCctvSedes,
@@ -150,6 +150,20 @@ const changeLogForm = reactive(emptyChangeLog())
 const reviewForm    = reactive(emptyReview())
 const incidentForm  = reactive(emptyIncident())
 
+// Auto-rellena conteos de camara en el formulario de revision segun la sede elegida
+watch(
+  [() => reviewForm.id_sede, cameras],
+  () => {
+    const base = reviewForm.id_sede
+      ? cameras.value.filter(c => c.id_sede === reviewForm.id_sede)
+      : cameras.value
+    reviewForm.camaras_activas       = base.filter(c => c.estado_valor === 'activa').length
+    reviewForm.camaras_mantenimiento = base.filter(c => c.estado_valor === 'en_mantenimiento').length
+    reviewForm.camaras_inactivas     = base.filter(c => c.estado_valor === 'inactiva').length
+  },
+  { immediate: true }
+)
+
 // ── CRUD sedes ─────────────────────────────────────────────────────────────────
 async function saveSite() {
   error.value = ''
@@ -296,11 +310,42 @@ function emptyChangeLog() {
   return { fecha_cambio: new Date().toISOString().slice(0, 10), id_sede: null, id_camara: null, descripcion: '', observaciones: '', cargo_responsable: 'Coordinador TIC' }
 }
 function emptyReview() {
-  return { fecha_revision: new Date().toISOString().slice(0, 10), cargo_revisor: 'Coordinador TIC', camaras_activas: 0, camaras_mantenimiento: 0, camaras_inactivas: 0, almacenamiento_verificado: false, backups_verificados: false, accesos_verificados: false, hallazgos: '', proxima_revision: '' }
+  return { id_sede: null, fecha_revision: new Date().toISOString().slice(0, 10), cargo_revisor: 'Coordinador TIC', camaras_activas: 0, camaras_mantenimiento: 0, camaras_inactivas: 0, almacenamiento_verificado: false, backups_verificados: false, accesos_verificados: false, hallazgos: '', proxima_revision: '' }
 }
 function emptyIncident() {
   return { fecha_incidente: new Date().toISOString().slice(0, 10), id_sede: null, id_camara: null, titulo: '', id_severidad: null, descripcion: '', accion_correctiva: '', id_estado_incidente: null }
 }
+
+// Historial unificado: mezcla changelogs + revisiones + incidentes ordenados por fecha_creacion desc
+const historialUnificado = computed(() => {
+  const logs = changelogs.value.map(l => ({
+    key:   `log-${l.id_registro_cambio}`,
+    tipo:  'cambio',
+    fecha: l.fecha_cambio,
+    titulo: l.descripcion,
+    sub:   l.nombre_sede || 'General',
+    _sort: l.fecha_creacion || l.fecha_cambio || '',
+  }))
+  const revs = reviews.value.map(r => ({
+    key:   `rev-${r.id_revision}`,
+    tipo:  'revision',
+    fecha: r.fecha_revision,
+    titulo: 'Revision periodica',
+    sub:   r.nombre_sede ? `Sede: ${r.nombre_sede}` : (r.hallazgos || 'Sin hallazgos'),
+    _sort: r.fecha_creacion || r.fecha_revision || '',
+  }))
+  const incs = incidents.value.map(i => ({
+    key:   `inc-${i.id_incidente}`,
+    tipo:  'incidente',
+    fecha: i.fecha_incidente,
+    titulo: i.titulo,
+    sub:   [i.estado, i.severidad].filter(Boolean).join(' · ') || '',
+    _sort: i.fecha_creacion || i.fecha_incidente || '',
+  }))
+  return [...logs, ...revs, ...incs]
+    .sort((a, b) => b._sort.localeCompare(a._sort))
+    .slice(0, 15)
+})
 
 // KPIs dinamicos por sede (camaras por sede, computado del estado local)
 const camerasPerSite = computed(() =>
@@ -628,10 +673,26 @@ function label(value) {
         <h2>Revision periodica</h2>
         <label>Fecha <input v-model="reviewForm.fecha_revision" type="date" required /></label>
         <label>Responsable <input v-model="reviewForm.cargo_revisor" required /></label>
+        <label>
+          Sede
+          <select v-model.number="reviewForm.id_sede">
+            <option :value="null">Todas las sedes</option>
+            <option v-for="s in sites" :key="s.id_sede" :value="s.id_sede">{{ s.nombre }}</option>
+          </select>
+        </label>
         <div class="cv-three-cols">
-          <label>Activas <input v-model.number="reviewForm.camaras_activas" type="number" min="0" /></label>
-          <label>Mantenimiento <input v-model.number="reviewForm.camaras_mantenimiento" type="number" min="0" /></label>
-          <label>Inactivas <input v-model.number="reviewForm.camaras_inactivas" type="number" min="0" /></label>
+          <label>
+            Activas
+            <input v-model.number="reviewForm.camaras_activas" type="number" min="0" class="cv-autofilled" />
+          </label>
+          <label>
+            Mantenimiento
+            <input v-model.number="reviewForm.camaras_mantenimiento" type="number" min="0" class="cv-autofilled" />
+          </label>
+          <label>
+            Inactivas
+            <input v-model.number="reviewForm.camaras_inactivas" type="number" min="0" class="cv-autofilled" />
+          </label>
         </div>
         <fieldset class="cv-fieldset">
           <legend>Validaciones</legend>
@@ -758,20 +819,15 @@ function label(value) {
       <!-- Historial unificado -->
       <section class="cv-panel cv-history">
         <h2>Ultimos registros</h2>
-        <div v-if="!changelogs.length && !reviews.length && !incidents.length" class="cv-empty">
-          Sin registros guardados aun.
-        </div>
-        <article v-for="log in changelogs.slice(0,5)" :key="`log-${log.id_registro_cambio}`" class="cv-history-item">
-          <strong>{{ log.fecha_cambio }} · {{ log.descripcion }}</strong>
-          <span>{{ log.nombre_sede || 'General' }}</span>
-        </article>
-        <article v-for="rev in reviews.slice(0,5)" :key="`rev-${rev.id_revision}`" class="cv-history-item">
-          <strong>{{ rev.fecha_revision }} · Revision periodica</strong>
-          <span>{{ rev.hallazgos || 'Sin hallazgos registrados' }}</span>
-        </article>
-        <article v-for="inc in incidents.slice(0,5)" :key="`inc-${inc.id_incidente}`" class="cv-history-item">
-          <strong>{{ inc.fecha_incidente }} · {{ inc.titulo }}</strong>
-          <span>{{ inc.estado }} · {{ inc.severidad }}</span>
+        <div v-if="!historialUnificado.length" class="cv-empty">Sin registros guardados aun.</div>
+        <article v-for="item in historialUnificado" :key="item.key" class="cv-history-item">
+          <div class="cv-history-head">
+            <span class="cv-pill cv-history-tipo" :class="item.tipo">
+              {{ item.tipo === 'cambio' ? 'Novedad' : item.tipo === 'revision' ? 'Revision' : 'Incidente' }}
+            </span>
+            <strong>{{ item.fecha }} · {{ item.titulo }}</strong>
+          </div>
+          <span>{{ item.sub }}</span>
         </article>
       </section>
 
@@ -864,9 +920,14 @@ function label(value) {
 .cv-card h3 { margin: 0 0 3px; font-size: .95rem; }
 .cv-card p { margin: 0; color: var(--cv-muted); font-size: .86rem; }
 
-.cv-history-item { border: 1px solid var(--cv-line); border-radius: 8px; padding: 11px 13px; display: grid; gap: 3px; background: #fff; }
+.cv-history-item { border: 1px solid var(--cv-line); border-radius: 8px; padding: 11px 13px; display: grid; gap: 5px; background: #fff; }
+.cv-history-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .cv-history-item strong { font-size: .88rem; color: var(--cv-ink); }
 .cv-history-item span   { font-size: .82rem; color: var(--cv-muted); }
+.cv-history-tipo        { font-size: .72rem; min-height: 22px; padding: 2px 8px; flex-shrink: 0; }
+.cv-history-tipo.cambio    { background: #eff6ff; color: #1d4ed8; }
+.cv-history-tipo.revision  { background: #f0fdf4; color: #15803d; }
+.cv-history-tipo.incidente { background: #fff1ef; color: var(--cv-danger); }
 
 .cv-pill { border-radius: 999px; background: #edf2f4; color: #3f5054; padding: 4px 10px; font-size: .74rem; font-weight: 800; display: inline-flex; align-items: center; min-height: 26px; white-space: nowrap; }
 .cv-pill.ok     { background: #e7f7ee; color: var(--cv-ok); }
@@ -874,6 +935,9 @@ function label(value) {
 .cv-pill.danger { background: #fff1ef; color: var(--cv-danger); }
 
 .cv-empty { border: 1px dashed #c9d8dc; border-radius: 8px; background: #f8fafa; padding: 16px; text-align: center; color: var(--cv-muted); font-size: .88rem; }
+
+/* ── Inputs auto-rellenados ─────────────────────────────────────────────────── */
+.cv-autofilled { background: #f0faf8; border-color: #b2dbd6; color: var(--cv-accent-s); font-weight: 700; }
 
 /* ── Paginacion ─────────────────────────────────────────────────────────────── */
 .cv-pagination { display: flex; align-items: center; gap: 10px; justify-content: center; padding-top: 4px; }
