@@ -69,16 +69,18 @@ export function useCctvSedes() {
 
 // ── Cámaras ────────────────────────────────────────────────────────────────────
 
+// Devuelve TODAS las cámaras (sin paginar) — para combos y KPIs del dashboard
 export function useCctvCamaras() {
   const qc = useQueryClient()
 
   const { data, isLoading } = useQuery({
     queryKey: ['cctv-camaras'],
-    queryFn:  () => post(`${BASE}/listar_camaras`),
+    queryFn:  () => post(`${BASE}/listar_camaras`, { page_size: 9999 }),
   })
 
   const invalidar = () => {
     qc.invalidateQueries({ queryKey: ['cctv-camaras'] })
+    qc.invalidateQueries({ queryKey: ['cctv-camaras-pag'] })
     qc.invalidateQueries({ queryKey: ['cctv-dashboard'] })
   }
 
@@ -87,11 +89,31 @@ export function useCctvCamaras() {
   const eliminarCamaraMutation   = useMutation({ mutationFn: (id) => post(`${BASE}/eliminar_camara`,  { id_camara: id }), onSuccess: invalidar })
 
   return {
-    cameras:              computed(() => data.value ?? []),
+    cameras:              computed(() => data.value?.items ?? []),
     camerasLoading:       isLoading,
     crearCamaraMutation,
     actualizarCamaraMutation,
     eliminarCamaraMutation,
+  }
+}
+
+// Devuelve cámaras paginadas + filtradas por sede — para la tabla del inventario
+export function useCctvCamarasPaginado(filtros) {
+  const EMPTY = { items: [], total: 0, page: 1, page_size: 15, total_pages: 1 }
+
+  const { data, isLoading } = useQuery({
+    queryKey: computed(() => ['cctv-camaras-pag', filtros.id_sede, filtros.page]),
+    queryFn:  () => post(`${BASE}/listar_camaras`, {
+      ...(filtros.id_sede ? { id_sede: filtros.id_sede } : {}),
+      page:      filtros.page,
+      page_size: 15,
+    }),
+  })
+
+  return {
+    camarasPag:        computed(() => data.value?.items ?? []),
+    paginacion:        computed(() => data.value        ?? EMPTY),
+    camarasPagLoading: isLoading,
   }
 }
 

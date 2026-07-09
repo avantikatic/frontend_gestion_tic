@@ -4,6 +4,7 @@ import {
   useCctvDashboard,
   useCctvSedes,
   useCctvCamaras,
+  useCctvCamarasPaginado,
   useCctvCargos,
   useCctvRegistros,
   useCctvCatalogos,
@@ -13,12 +14,16 @@ const USUARIO = 'sistemas@avantika.com.co'
 
 const activeView = ref('dashboard')
 const error      = ref('')
-const search     = ref('')
+
+// Filtro + paginacion de la tabla de camaras
+const camarasFiltros = reactive({ id_sede: null, page: 1 })
+function setCamarasSede(id) { camarasFiltros.id_sede = id || null; camarasFiltros.page = 1 }
 
 // ── Composables ────────────────────────────────────────────────────────────────
 const { dashboard, dashLoading }                                                                         = useCctvDashboard()
 const { sites, sitesLoading, crearSedeMutation, actualizarSedeMutation, eliminarSedeMutation }          = useCctvSedes()
 const { cameras, camerasLoading, crearCamaraMutation, actualizarCamaraMutation, eliminarCamaraMutation } = useCctvCamaras()
+const { camarasPag, paginacion, camarasPagLoading } = useCctvCamarasPaginado(camarasFiltros)
 const { roles, rolesLoading, crearCargoMutation, actualizarCargoMutation, eliminarCargoMutation }        = useCctvCargos()
 const { changelogs, reviews, incidents, crearChangelogMutation, crearRevisionMutation, crearIncidenteMutation } = useCctvRegistros()
 const { catalogos } = useCctvCatalogos()
@@ -137,15 +142,6 @@ const viewTitle = computed(() => ({
   records:   'Evidencias y trazabilidad',
 }[activeView.value]))
 
-const filteredCameras = computed(() => {
-  const term = search.value.toLowerCase().trim()
-  if (!term) return cameras.value
-  return cameras.value.filter(c =>
-    [c.codigo_equipo_grabacion, c.ubicacion_fisica, c.nombre_sede, c.estado, c.metodo_backup]
-      .join(' ').toLowerCase().includes(term),
-  )
-})
-
 // ── Formularios ────────────────────────────────────────────────────────────────
 const siteForm      = reactive(emptySite())
 const cameraForm    = reactive(emptyCamera())
@@ -253,13 +249,12 @@ async function saveIncident() {
 // ── Payloads ───────────────────────────────────────────────────────────────────
 function sitePayload() {
   return {
-    nombre:                    siteForm.nombre,
-    ubicacion_general:         siteForm.ubicacion_general,
-    responsable_operativo:     siteForm.responsable_operativo,
-    sistema_grabacion:         siteForm.sistema_grabacion,
-    dias_almacenamiento_estimado: Number(siteForm.dias_almacenamiento_estimado || 0),
-    codigo_activo:             siteForm.codigo_activo,
-    observaciones:             siteForm.observaciones,
+    nombre:                siteForm.nombre,
+    ubicacion_general:     siteForm.ubicacion_general,
+    responsable_operativo: siteForm.responsable_operativo,
+    sistema_grabacion:     siteForm.sistema_grabacion,
+    codigo_activo:         siteForm.codigo_activo,
+    observaciones:         siteForm.observaciones,
   }
 }
 
@@ -270,7 +265,6 @@ function cameraPayload() {
     id_estado_camara:                Number(cameraForm.id_estado_camara),
     dias_almacenamiento:             Number(cameraForm.dias_almacenamiento || 0),
     id_metodo_backup:                Number(cameraForm.id_metodo_backup),
-    dias_retencion_backup:           Number(cameraForm.dias_retencion_backup || 0),
     fecha_instalacion_actualizacion: cameraForm.fecha_instalacion_actualizacion,
     observaciones:                   cameraForm.observaciones,
   }
@@ -290,10 +284,10 @@ function rolePayload() {
 
 // ── Valores por defecto ────────────────────────────────────────────────────────
 function emptySite() {
-  return { id_sede: null, nombre: '', ubicacion_general: '', responsable_operativo: '', sistema_grabacion: '', dias_almacenamiento_estimado: 0, codigo_activo: '', observaciones: '' }
+  return { id_sede: null, nombre: '', ubicacion_general: '', responsable_operativo: '', sistema_grabacion: '', codigo_activo: '', observaciones: '' }
 }
 function emptyCamera() {
-  return { id_camara: null, id_sede: '', codigo_equipo_grabacion: '', ubicacion_fisica: '', id_estado_camara: null, dias_almacenamiento: 0, id_metodo_backup: null, dias_retencion_backup: 0, fecha_instalacion_actualizacion: new Date().toISOString().slice(0, 10), observaciones: '' }
+  return { id_camara: null, id_sede: '', codigo_equipo_grabacion: '', ubicacion_fisica: '', id_estado_camara: null, dias_almacenamiento: 0, id_metodo_backup: null, fecha_instalacion_actualizacion: new Date().toISOString().slice(0, 10), observaciones: '' }
 }
 function emptyRole() {
   return { id_cargo: null, nombre: '', id_nivel_acceso: null, justificacion_acceso: '', puede_ver_camaras: false, puede_editar_inventario: false, puede_administrar_configuracion: false, ids_sedes: [] }
@@ -307,6 +301,14 @@ function emptyReview() {
 function emptyIncident() {
   return { fecha_incidente: new Date().toISOString().slice(0, 10), id_sede: null, id_camara: null, titulo: '', id_severidad: null, descripcion: '', accion_correctiva: '', id_estado_incidente: null }
 }
+
+// KPIs dinamicos por sede (camaras por sede, computado del estado local)
+const camerasPerSite = computed(() =>
+  sites.value.map(s => ({
+    nombre:  s.nombre,
+    camaras: cameras.value.filter(c => c.id_sede === s.id_sede).length,
+  }))
+)
 
 // ── Helpers de UI ──────────────────────────────────────────────────────────────
 function badgeClass(value) {
@@ -361,16 +363,13 @@ function label(value) {
           <strong>{{ dashboard.totales.sedes }}</strong>
         </article>
         <article class="cv-metric">
-          <span>Camaras</span>
-          <strong>{{ dashboard.totales.camaras }}</strong>
-        </article>
-        <article class="cv-metric">
-          <span>Dias de almacenamiento</span>
-          <strong>{{ dashboard.totales.dias_almacenamiento }}</strong>
-        </article>
-        <article class="cv-metric">
           <span>Cargos autorizados</span>
           <strong>{{ dashboard.totales.cargos_autorizados }}</strong>
+        </article>
+        <article v-for="s in camerasPerSite" :key="s.nombre" class="cv-metric cv-metric--site">
+          <span>{{ s.nombre }}</span>
+          <strong>{{ s.camaras }}</strong>
+          <em>camaras</em>
         </article>
       </div>
 
@@ -385,19 +384,18 @@ function label(value) {
           <table>
             <thead>
               <tr>
-                <th>Sede</th><th>Ubicacion</th><th>Camaras</th><th>Almacenamiento</th><th>Backups</th>
+                <th>Sede</th><th>Ubicacion</th><th>Camaras</th><th>Almacenamiento</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="!dashboard.por_sede.length">
-                <td colspan="5" style="text-align:center;color:#6b7280">Sin sedes registradas. Agrega una sede para ver el resumen.</td>
+                <td colspan="4" style="text-align:center;color:#6b7280">Sin sedes registradas. Agrega una sede para ver el resumen.</td>
               </tr>
               <tr v-for="site in dashboard.por_sede" :key="site.id_sede">
                 <td><strong>{{ site.nombre }}</strong></td>
                 <td>{{ site.ubicacion_general }}</td>
                 <td>{{ site.camaras }}</td>
                 <td>{{ site.dias_almacenamiento }} dias</td>
-                <td>{{ site.dias_backup }} dias</td>
               </tr>
             </tbody>
           </table>
@@ -419,7 +417,6 @@ function label(value) {
         <label>Ubicacion general <input v-model="siteForm.ubicacion_general" required /></label>
         <label>Responsable operativo <input v-model="siteForm.responsable_operativo" /></label>
         <label>Sistema de grabacion <input v-model="siteForm.sistema_grabacion" placeholder="NVR, DVR, NAS" /></label>
-        <label>Retencion estimada (dias) <input v-model.number="siteForm.dias_almacenamiento_estimado" type="number" min="0" /></label>
         <label>Codigo de activo <input v-model="siteForm.codigo_activo" /></label>
         <label>Observaciones <textarea v-model="siteForm.observaciones"></textarea></label>
         <div class="cv-form-actions">
@@ -442,7 +439,6 @@ function label(value) {
               <h3>{{ site.nombre }}</h3>
               <p>{{ site.ubicacion_general }} · {{ site.responsable_operativo || 'Sin responsable' }}</p>
             </div>
-            <span class="cv-pill">{{ site.dias_almacenamiento_estimado }} dias</span>
           </header>
           <p>{{ site.sistema_grabacion || 'Sistema de grabacion no definido' }}<span v-if="site.codigo_activo"> · <strong>{{ site.codigo_activo }}</strong></span></p>
           <div class="cv-row-actions">
@@ -487,10 +483,7 @@ function label(value) {
             <option v-for="e in catalogos.estados_camara" :key="e.id" :value="e.id">{{ e.nombre }}</option>
           </select>
         </label>
-        <div class="cv-two-cols">
-          <label>Almacenamiento (dias) <input v-model.number="cameraForm.dias_almacenamiento" type="number" min="0" /></label>
-          <label>Retencion (dias) <input v-model.number="cameraForm.dias_retencion_backup" type="number" min="0" /></label>
-        </div>
+        <label>Almacenamiento (dias) <input v-model.number="cameraForm.dias_almacenamiento" type="number" min="0" /></label>
         <label>
           Metodo de almacenamiento
           <select v-model.number="cameraForm.id_metodo_backup">
@@ -512,7 +505,10 @@ function label(value) {
             <h2>Camaras registradas</h2>
             <p>Estado, ubicacion, almacenamiento y equipo asociado.</p>
           </div>
-          <input v-model="search" class="cv-search" placeholder="Buscar camara" type="search" />
+          <select class="cv-search" :value="camarasFiltros.id_sede" @change="setCamarasSede(Number($event.target.value) || null)">
+            <option :value="null">Todas las sedes</option>
+            <option v-for="s in sites" :key="s.id_sede" :value="s.id_sede">{{ s.nombre }}</option>
+          </select>
         </div>
         <div class="cv-table-wrap">
           <table>
@@ -522,10 +518,13 @@ function label(value) {
               </tr>
             </thead>
             <tbody>
-              <tr v-if="!filteredCameras.length">
+              <tr v-if="camarasPagLoading">
+                <td colspan="6" style="text-align:center;color:#6b7280">Cargando…</td>
+              </tr>
+              <tr v-else-if="!camarasPag.length">
                 <td colspan="6" style="text-align:center;color:#6b7280">Sin camaras registradas.</td>
               </tr>
-              <tr v-for="camera in filteredCameras" :key="camera.id_camara">
+              <tr v-for="camera in camarasPag" :key="camera.id_camara">
                 <td><strong>{{ camera.codigo_equipo_grabacion }}</strong></td>
                 <td>{{ camera.nombre_sede }}</td>
                 <td>{{ camera.ubicacion_fisica }}</td>
@@ -541,6 +540,13 @@ function label(value) {
             </tbody>
           </table>
         </div>
+        <!-- Paginacion -->
+        <div v-if="paginacion.total_pages > 1" class="cv-pagination">
+          <button class="cv-btn-ghost cv-pag-btn" :disabled="camarasFiltros.page <= 1" @click="camarasFiltros.page--">&#8592;</button>
+          <span class="cv-pag-info">Pagina {{ paginacion.page }} de {{ paginacion.total_pages }} · {{ paginacion.total }} camaras</span>
+          <button class="cv-btn-ghost cv-pag-btn" :disabled="camarasFiltros.page >= paginacion.total_pages" @click="camarasFiltros.page++">&#8594;</button>
+        </div>
+        <p v-else class="cv-pag-total">{{ paginacion.total }} camara{{ paginacion.total !== 1 ? 's' : '' }}</p>
       </div>
 
     </section>
@@ -821,10 +827,12 @@ function label(value) {
 .cv-records-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18px; align-items: start; }
 .cv-history { grid-column: 1 / -1; }
 
-.cv-stats-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 14px; margin-bottom: 4px; }
-.cv-metric { background: var(--cv-surface); border: 1px solid var(--cv-line); border-radius: 8px; padding: 18px 20px; box-shadow: var(--cv-shadow); }
-.cv-metric span { color: var(--cv-muted); display: block; font-size: .88rem; margin-bottom: 8px; }
+.cv-stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; margin-bottom: 4px; align-items: stretch; }
+.cv-metric { background: var(--cv-surface); border: 1px solid var(--cv-line); border-radius: 8px; padding: 18px 20px; box-shadow: var(--cv-shadow); display: flex; flex-direction: column; }
+.cv-metric span { color: var(--cv-muted); display: block; font-size: .88rem; line-height: 1.3; min-height: 2.6em; margin-bottom: 8px; }
 .cv-metric strong { display: block; font-size: 2rem; color: var(--cv-ink); }
+.cv-metric--site strong { font-size: 1.6rem; color: var(--cv-accent); }
+.cv-metric--site em { font-size: .78rem; color: var(--cv-muted); font-style: normal; margin-top: 2px; display: block; }
 
 .cv-panel { background: var(--cv-surface); border: 1px solid var(--cv-line); border-radius: 8px; padding: 18px 20px; box-shadow: var(--cv-shadow); display: grid; gap: 14px; }
 
@@ -866,6 +874,12 @@ function label(value) {
 .cv-pill.danger { background: #fff1ef; color: var(--cv-danger); }
 
 .cv-empty { border: 1px dashed #c9d8dc; border-radius: 8px; background: #f8fafa; padding: 16px; text-align: center; color: var(--cv-muted); font-size: .88rem; }
+
+/* ── Paginacion ─────────────────────────────────────────────────────────────── */
+.cv-pagination { display: flex; align-items: center; gap: 10px; justify-content: center; padding-top: 4px; }
+.cv-pag-btn    { min-width: 36px; padding: 0 10px; font-size: 1rem; }
+.cv-pag-info   { font-size: .84rem; color: var(--cv-muted); }
+.cv-pag-total  { font-size: .84rem; color: var(--cv-muted); text-align: center; margin: 0; }
 
 /* ── Combobox buscable ──────────────────────────────────────────────────────── */
 .cv-combo { position: relative; }
